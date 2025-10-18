@@ -598,8 +598,9 @@ export const GuestSelector = ({
                 </div>
               </div>
 
-              {/* Room 1 - Always Visible */}
+              {/* Room Details - Always show Room 1 */}
               <div className="border-t pt-4">
+                <div className="text-xs font-medium text-muted-foreground mb-3">Room Details</div>
                 <div className="p-3 bg-primary/5 rounded-lg space-y-3">
                   <div className="font-medium text-sm text-primary">Room 1</div>
                   
