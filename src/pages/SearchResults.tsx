@@ -34,6 +34,7 @@ const SearchResults = () => {
   const destination = searchParams.get("destination") || "Riyadh";
   const guests =
     searchParams.get("guests") || APP_CONFIG.DEFAULT_GUESTS.toString();
+  const rooms = parseInt(searchParams.get("rooms") || "1");
   const checkInRaw = searchParams.get("checkIn") || "";
   const checkOutRaw = searchParams.get("checkOut") || "";
 
@@ -294,6 +295,14 @@ const SearchResults = () => {
           console.log("🔍 Step 4: Searching hotels...");
 
           // Try searching by city code first (broader search)
+          // Create PaxRooms array based on number of rooms
+          const adultsPerRoom = Math.ceil(parseInt(guests) / rooms);
+          const paxRooms = Array(rooms).fill(null).map(() => ({
+            Adults: adultsPerRoom,
+            Children: APP_CONFIG.DEFAULT_CHILDREN,
+            ChildrenAges: [],
+          }));
+
           let searchParams = {
             CheckIn: checkIn,
             CheckOut: checkOut,
@@ -301,13 +310,7 @@ const SearchResults = () => {
             HotelCodes: hotelCodes, // Fallback to specific hotel codes
             GuestNationality: APP_CONFIG.DEFAULT_GUEST_NATIONALITY,
             PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
-            PaxRooms: [
-              {
-                Adults: parseInt(guests) || APP_CONFIG.DEFAULT_GUESTS,
-                Children: APP_CONFIG.DEFAULT_CHILDREN,
-                ChildrenAges: [],
-              },
-            ],
+            PaxRooms: paxRooms,
             IsDetailResponse: true,
             ResponseTime: APP_CONFIG.DEFAULT_RESPONSE_TIME,
           };
@@ -331,13 +334,7 @@ const SearchResults = () => {
               HotelCodes: hotelCodes, // Fallback to specific hotel codes
               GuestNationality: APP_CONFIG.DEFAULT_GUEST_NATIONALITY,
               PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
-              PaxRooms: [
-                {
-                  Adults: parseInt(guests) || APP_CONFIG.DEFAULT_GUESTS,
-                  Children: APP_CONFIG.DEFAULT_CHILDREN,
-                  ChildrenAges: [],
-                },
-              ],
+              PaxRooms: paxRooms, // Use the same paxRooms array
               IsDetailResponse: true,
               ResponseTime: APP_CONFIG.DEFAULT_RESPONSE_TIME,
             };
