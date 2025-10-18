@@ -294,15 +294,10 @@ const SearchResults = () => {
           // Step 4: Search hotels
           console.log("🔍 Step 4: Searching hotels...");
 
-          // Try searching by city code first (broader search)
-          // Create PaxRooms array based on number of rooms
+          // Always search for 1 room to get all available room types
+          // Users can then select multiple rooms from the available options
           const adultsPerRoom = Math.ceil(parseInt(guests) / rooms);
-          const paxRooms = Array(rooms).fill(null).map(() => ({
-            Adults: adultsPerRoom,
-            Children: APP_CONFIG.DEFAULT_CHILDREN,
-            ChildrenAges: [],
-          }));
-
+          
           let searchParams = {
             CheckIn: checkIn,
             CheckOut: checkOut,
@@ -310,7 +305,13 @@ const SearchResults = () => {
             HotelCodes: hotelCodes, // Fallback to specific hotel codes
             GuestNationality: APP_CONFIG.DEFAULT_GUEST_NATIONALITY,
             PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
-            PaxRooms: paxRooms,
+            PaxRooms: [
+              {
+                Adults: adultsPerRoom,
+                Children: APP_CONFIG.DEFAULT_CHILDREN,
+                ChildrenAges: [],
+              },
+            ],
             IsDetailResponse: true,
             ResponseTime: APP_CONFIG.DEFAULT_RESPONSE_TIME,
           };
