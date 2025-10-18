@@ -506,67 +506,7 @@ export const GuestSelector = ({
         >
           <div className="p-4">
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-sm">Adults</div>
-                  <div className="text-xs text-muted-foreground">
-                    Ages 13 or above
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 rounded-full hover:scale-110 transition-transform duration-200"
-                    onClick={() => onAdultsChange(Math.max(1, adults - 1))}
-                    disabled={adults <= 1}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-8 text-center text-sm font-medium">
-                    {adults}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 rounded-full hover:scale-110 transition-transform duration-200"
-                    onClick={() => onAdultsChange(adults + 1)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-sm">Children</div>
-                  <div className="text-xs text-muted-foreground">Ages 2-12</div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 rounded-full hover:scale-110 transition-transform duration-200"
-                    onClick={() => onChildrenChange(Math.max(0, children - 1))}
-                    disabled={children <= 0}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-8 text-center text-sm font-medium">
-                    {children}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 rounded-full hover:scale-110 transition-transform duration-200"
-                    onClick={() => onChildrenChange(children + 1)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Rooms Selector */}
+              {/* Rooms Selector - Only functional control */}
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-medium text-sm">Rooms</div>
