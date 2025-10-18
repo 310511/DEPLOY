@@ -320,30 +320,8 @@ const SearchResults = () => {
             cityCode
           );
 
-          let searchResult = await search(searchParams);
+          const searchResult = await search(searchParams);
           console.log("🔍 City-based search result:", searchResult);
-
-          // If city-based search returns no results, try with specific hotel codes
-          if (!searchResult || searchResult.length === 0) {
-            console.log(
-              "🔍 City-based search returned no results, trying with specific hotel codes..."
-            );
-            searchParams = {
-              CheckIn: checkIn,
-              CheckOut: checkOut,
-              HotelCodes: hotelCodes, // Fallback to specific hotel codes
-              GuestNationality: APP_CONFIG.DEFAULT_GUEST_NATIONALITY,
-              PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
-              PaxRooms: paxRooms, // Use the same paxRooms array
-              IsDetailResponse: true,
-              ResponseTime: APP_CONFIG.DEFAULT_RESPONSE_TIME,
-            };
-
-            console.log("🔍 Trying hotel-codes-based search with:", hotelCodes);
-            searchResult = await search(searchParams);
-            console.log("🔍 Hotel-codes-based search result:", searchResult);
-          }
-
           console.log("✅ Step 4 complete - Search finished");
           console.log("🔍 Final search result:", searchResult);
           console.log("🔍 Hotels state after search:", hotels);
