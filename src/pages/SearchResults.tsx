@@ -296,7 +296,7 @@ const SearchResults = () => {
 
           // Always search for 1 room to get all available room types
           // Users can then select multiple rooms from the available options
-          const adultsPerRoom = Math.ceil(parseInt(guests) / rooms);
+          const totalGuests = parseInt(guests) || APP_CONFIG.DEFAULT_GUESTS;
           
           let searchParams = {
             CheckIn: checkIn,
@@ -307,7 +307,7 @@ const SearchResults = () => {
             PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
             PaxRooms: [
               {
-                Adults: adultsPerRoom,
+                Adults: totalGuests,
                 Children: APP_CONFIG.DEFAULT_CHILDREN,
                 ChildrenAges: [],
               },
