@@ -724,8 +724,8 @@ const HotelDetails = () => {
               </div>
              
 
-              {/* Reserve Button */}
-              <div className="flex gap-3 mt-6">
+              {/* Reserve Button with Couple Video */}
+              <div className="flex items-center gap-6 mt-6">
                 <Button 
                   size="lg" 
                   className="w-96 bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
@@ -734,15 +734,15 @@ const HotelDetails = () => {
                 >
                   {searchingForBookingCode ? "Finding booking code..." : prebookLoading ? "Processing..." : "Reserve"}
                 </Button>
+                <video
+                  src="/couple-vacation.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  style={{ width: "200px", borderRadius: "8px" }}
+                />
               </div>
-               {<video
-                          src="/couple-vacation.mp4"
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          style={{ display:"flex" , width: "200px", borderRadius: "8px" }}
-                        />  }
 
               {!bookingCode && !searchingForBookingCode && (
                 <div className="text-center text-sm text-red-500 mt-2">
@@ -770,7 +770,7 @@ const HotelDetails = () => {
     {hotelDetails.HotelFacilities &&
       (showAllAmenities
         ? hotelDetails.HotelFacilities
-        : hotelDetails.HotelFacilities.slice(0, 5)
+        : hotelDetails.HotelFacilities.slice(0, 6)
       ).map((amenity: string, index: number) => (
         <div
           key={`${amenity}-${index}`}
