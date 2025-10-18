@@ -598,138 +598,184 @@ export const GuestSelector = ({
                 </div>
               </div>
 
-              {/* Children Ages */}
-              {children > 0 && (
-                <div className="border-t pt-4">
-                  <div className="font-medium text-sm mb-3">Children Ages</div>
-                  <div className="space-y-2">
-                    {Array.from({ length: children }).map((_, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <Label className="text-xs text-muted-foreground">
-                          Child {index + 1} age
-                        </Label>
-                        <select
-                          value={localChildrenAges[index] || 0}
-                          onChange={(e) => handleChildAgeChange(index, parseInt(e.target.value))}
-                          className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                          <option value={0}>Select</option>
-                          {Array.from({ length: 11 }, (_, i) => i + 2).map((age) => (
-                            <option key={age} value={age}>
-                              {age}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Room Distribution */}
-              {rooms > 1 && (
-                <div className="border-t pt-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-between text-sm"
-                    onClick={() => setShowRoomDistribution(!showRoomDistribution)}
-                  >
-                    <span className="font-medium">Guest distribution per room</span>
-                    <ChevronRight className={cn(
-                      "h-4 w-4 transition-transform",
-                      showRoomDistribution && "rotate-90"
-                    )} />
-                  </Button>
+              {/* Room 1 - Always Visible */}
+              <div className="border-t pt-4">
+                <div className="p-3 bg-primary/5 rounded-lg space-y-3">
+                  <div className="font-medium text-sm text-primary">Room 1</div>
                   
-                  {showRoomDistribution && (
-                    <div className="mt-3 space-y-4">
-                      {Array.from({ length: rooms }).map((_, roomIndex) => (
-                        <div key={roomIndex} className="p-3 bg-muted/30 rounded-lg space-y-3">
-                          <div className="font-medium text-xs text-primary">Room {roomIndex + 1}</div>
-                          
-                          {/* Adults per room */}
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs">Adults</Label>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-6 w-6 rounded-full"
-                                onClick={() => handleRoomGuestChange(roomIndex, 'adults', Math.max(1, (localRoomGuests[roomIndex]?.adults || 1) - 1))}
-                                disabled={(localRoomGuests[roomIndex]?.adults || 1) <= 1}
-                              >
-                                <Minus className="h-2 w-2" />
-                              </Button>
-                              <span className="w-6 text-center text-xs">
-                                {localRoomGuests[roomIndex]?.adults || 1}
-                              </span>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-6 w-6 rounded-full"
-                                onClick={() => handleRoomGuestChange(roomIndex, 'adults', (localRoomGuests[roomIndex]?.adults || 1) + 1)}
-                              >
-                                <Plus className="h-2 w-2" />
-                              </Button>
-                            </div>
-                          </div>
+                  {/* Adults for Room 1 */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Adults</Label>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6 rounded-full"
+                        onClick={() => handleRoomGuestChange(0, 'adults', Math.max(1, (localRoomGuests[0]?.adults || 1) - 1))}
+                        disabled={(localRoomGuests[0]?.adults || 1) <= 1}
+                      >
+                        <Minus className="h-2 w-2" />
+                      </Button>
+                      <span className="w-6 text-center text-xs font-medium">
+                        {localRoomGuests[0]?.adults || 1}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6 rounded-full"
+                        onClick={() => handleRoomGuestChange(0, 'adults', (localRoomGuests[0]?.adults || 1) + 1)}
+                      >
+                        <Plus className="h-2 w-2" />
+                      </Button>
+                    </div>
+                  </div>
 
-                          {/* Children per room */}
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs">Children</Label>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-6 w-6 rounded-full"
-                                onClick={() => handleRoomGuestChange(roomIndex, 'children', Math.max(0, (localRoomGuests[roomIndex]?.children || 0) - 1))}
-                                disabled={(localRoomGuests[roomIndex]?.children || 0) <= 0}
-                              >
-                                <Minus className="h-2 w-2" />
-                              </Button>
-                              <span className="w-6 text-center text-xs">
-                                {localRoomGuests[roomIndex]?.children || 0}
-                              </span>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-6 w-6 rounded-full"
-                                onClick={() => handleRoomGuestChange(roomIndex, 'children', (localRoomGuests[roomIndex]?.children || 0) + 1)}
-                              >
-                                <Plus className="h-2 w-2" />
-                              </Button>
-                            </div>
-                          </div>
+                  {/* Children for Room 1 */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Children</Label>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6 rounded-full"
+                        onClick={() => handleRoomGuestChange(0, 'children', Math.max(0, (localRoomGuests[0]?.children || 0) - 1))}
+                        disabled={(localRoomGuests[0]?.children || 0) <= 0}
+                      >
+                        <Minus className="h-2 w-2" />
+                      </Button>
+                      <span className="w-6 text-center text-xs font-medium">
+                        {localRoomGuests[0]?.children || 0}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6 rounded-full"
+                        onClick={() => handleRoomGuestChange(0, 'children', (localRoomGuests[0]?.children || 0) + 1)}
+                      >
+                        <Plus className="h-2 w-2" />
+                      </Button>
+                    </div>
+                  </div>
 
-                          {/* Children ages per room */}
-                          {(localRoomGuests[roomIndex]?.children || 0) > 0 && (
-                            <div className="space-y-2 pt-2 border-t border-muted">
-                              {Array.from({ length: localRoomGuests[roomIndex]?.children || 0 }).map((_, childIndex) => (
-                                <div key={childIndex} className="flex items-center justify-between">
-                                  <Label className="text-xs text-muted-foreground">
-                                    Child {childIndex + 1} age
-                                  </Label>
-                                  <select
-                                    value={localRoomGuests[roomIndex]?.childrenAges?.[childIndex] || 0}
-                                    onChange={(e) => handleRoomChildAgeChange(roomIndex, childIndex, parseInt(e.target.value))}
-                                    className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                                  >
-                                    <option value={0}>Age</option>
-                                    {Array.from({ length: 11 }, (_, i) => i + 2).map((age) => (
-                                      <option key={age} value={age}>
-                                        {age}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                  {/* Children ages for Room 1 */}
+                  {(localRoomGuests[0]?.children || 0) > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-primary/20">
+                      <div className="text-xs font-medium text-muted-foreground">Children Ages</div>
+                      {Array.from({ length: localRoomGuests[0]?.children || 0 }).map((_, childIndex) => (
+                        <div key={childIndex} className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">
+                            Age {childIndex + 1}
+                          </Label>
+                          <select
+                            value={localRoomGuests[0]?.childrenAges?.[childIndex] || 0}
+                            onChange={(e) => handleRoomChildAgeChange(0, childIndex, parseInt(e.target.value))}
+                            className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            <option value={0}>Age</option>
+                            {Array.from({ length: 11 }, (_, i) => i + 2).map((age) => (
+                              <option key={age} value={age}>
+                                {age}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Additional Rooms (Room 2, Room 3, etc.) */}
+              {rooms > 1 && (
+                <div className="border-t pt-4 space-y-3">
+                  {Array.from({ length: rooms - 1 }).map((_, index) => {
+                    const roomIndex = index + 1; // Start from Room 2
+                    return (
+                      <div key={roomIndex} className="p-3 bg-muted/30 rounded-lg space-y-3">
+                        <div className="font-medium text-sm text-primary">Room {roomIndex + 1}</div>
+                        
+                        {/* Adults per room */}
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Adults</Label>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-6 w-6 rounded-full"
+                              onClick={() => handleRoomGuestChange(roomIndex, 'adults', Math.max(1, (localRoomGuests[roomIndex]?.adults || 1) - 1))}
+                              disabled={(localRoomGuests[roomIndex]?.adults || 1) <= 1}
+                            >
+                              <Minus className="h-2 w-2" />
+                            </Button>
+                            <span className="w-6 text-center text-xs font-medium">
+                              {localRoomGuests[roomIndex]?.adults || 1}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-6 w-6 rounded-full"
+                              onClick={() => handleRoomGuestChange(roomIndex, 'adults', (localRoomGuests[roomIndex]?.adults || 1) + 1)}
+                            >
+                              <Plus className="h-2 w-2" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Children per room */}
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Children</Label>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-6 w-6 rounded-full"
+                              onClick={() => handleRoomGuestChange(roomIndex, 'children', Math.max(0, (localRoomGuests[roomIndex]?.children || 0) - 1))}
+                              disabled={(localRoomGuests[roomIndex]?.children || 0) <= 0}
+                            >
+                              <Minus className="h-2 w-2" />
+                            </Button>
+                            <span className="w-6 text-center text-xs font-medium">
+                              {localRoomGuests[roomIndex]?.children || 0}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-6 w-6 rounded-full"
+                              onClick={() => handleRoomGuestChange(roomIndex, 'children', (localRoomGuests[roomIndex]?.children || 0) + 1)}
+                            >
+                              <Plus className="h-2 w-2" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Children ages per room */}
+                        {(localRoomGuests[roomIndex]?.children || 0) > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-muted">
+                            <div className="text-xs font-medium text-muted-foreground">Children Ages</div>
+                            {Array.from({ length: localRoomGuests[roomIndex]?.children || 0 }).map((_, childIndex) => (
+                              <div key={childIndex} className="flex items-center justify-between">
+                                <Label className="text-xs text-muted-foreground">
+                                  Age {childIndex + 1}
+                                </Label>
+                                <select
+                                  value={localRoomGuests[roomIndex]?.childrenAges?.[childIndex] || 0}
+                                  onChange={(e) => handleRoomChildAgeChange(roomIndex, childIndex, parseInt(e.target.value))}
+                                  className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                  <option value={0}>Age</option>
+                                  {Array.from({ length: 11 }, (_, i) => i + 2).map((age) => (
+                                    <option key={age} value={age}>
+                                      {age}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
