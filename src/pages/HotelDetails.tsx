@@ -725,7 +725,7 @@ const HotelDetails = () => {
              
 
               {/* Reserve Button with Couple Video */}
-              <div className="flex items-center gap-6 mt-1">
+              <div className="flex items-center gap-6">
                 <Button 
                   size="lg" 
                   className="w-96 bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
@@ -756,7 +756,7 @@ const HotelDetails = () => {
                 </div>
               )}
 
-              <p className="text-center text-sm text-muted-foreground mt-3">
+              <p className="text-center text-sm text-muted-foreground">
                 You won't be charged yet
               </p>
             </div>
