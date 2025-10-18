@@ -479,23 +479,8 @@ export const GuestSelector = ({
         <Label className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
           Guests
         </Label>
-        <div
-          className={cn(
-            "text-base font-normal transition-colors",
-            totalGuests > 0
-              ? "text-foreground font-medium"
-              : "text-muted-foreground"
-          )}
-        >
-          {totalGuests > 0 || rooms > 0
-            ? `${
-                totalGuests > 0
-                  ? `${totalGuests} guest${totalGuests > 1 ? "s" : ""}`
-                  : ""
-              }${totalGuests > 0 && rooms > 0 ? ", " : ""}${
-                rooms > 0 ? `${rooms} room${rooms > 1 ? "s" : ""}` : ""
-              }`
-            : "Add guests"}
+        <div className="text-base font-normal text-muted-foreground transition-colors">
+          Enter details
         </div>
       </div>
 
