@@ -61,6 +61,7 @@ const NewCustomSearchBar = ({ isSticky = false }: Props) => {
     const params = new URLSearchParams({
       destination: destination || "Riyadh",
       guests: (adults + children).toString(),
+      rooms: rooms.toString(),
     });
 
     // Format dates in local timezone (YYYY-MM-DD) to avoid timezone shift issues
