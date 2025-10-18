@@ -26,7 +26,9 @@ const NewCustomSearchBar = ({ isSticky = false }: Props) => {
   const [endDate, setEndDate] = useState<Date | undefined>(defaultEndDate);
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
-  const [rooms, setRooms] = useState(1); // Initialize rooms state
+  const [rooms, setRooms] = useState(1);
+  const [childrenAges, setChildrenAges] = useState<number[]>([]);
+  const [roomGuests, setRoomGuests] = useState<Array<{adults: number; children: number; childrenAges: number[]}>>([]);
   const [showDestinations, setShowDestinations] = useState(false);
   const [showCheckinPicker, setShowCheckinPicker] = useState(false);
   const [showCheckoutPicker, setShowCheckoutPicker] = useState(false);
@@ -178,10 +180,14 @@ const NewCustomSearchBar = ({ isSticky = false }: Props) => {
             <GuestSelector
               adults={adults}
               children={children}
-              rooms={rooms} // Pass rooms prop
+              rooms={rooms}
+              childrenAges={childrenAges}
+              roomGuests={roomGuests}
               onAdultsChange={setAdults}
               onChildrenChange={setChildren}
-              onRoomsChange={setRooms} // Pass onRoomsChange handler
+              onRoomsChange={setRooms}
+              onChildrenAgesChange={setChildrenAges}
+              onRoomGuestsChange={setRoomGuests}
               isOpen={showGuests}
               onOpenChange={(open) => {
                 setShowGuests(open);

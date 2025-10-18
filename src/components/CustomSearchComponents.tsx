@@ -385,13 +385,23 @@ export const DatePicker = ({
   );
 };
 
+interface RoomGuests {
+  adults: number;
+  children: number;
+  childrenAges: number[];
+}
+
 interface GuestSelectorProps {
   adults: number;
   children: number;
-  rooms: number; // New prop for number of rooms
+  rooms: number;
+  childrenAges?: number[];
+  roomGuests?: RoomGuests[];
   onAdultsChange: (count: number) => void;
   onChildrenChange: (count: number) => void;
-  onRoomsChange: (count: number) => void; // New prop for changing room count
+  onRoomsChange: (count: number) => void;
+  onChildrenAgesChange?: (ages: number[]) => void;
+  onRoomGuestsChange?: (roomGuests: RoomGuests[]) => void;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -399,15 +409,66 @@ interface GuestSelectorProps {
 export const GuestSelector = ({
   adults,
   children,
-  rooms, // Destructure new rooms prop
+  rooms,
+  childrenAges = [],
+  roomGuests = [],
   onAdultsChange,
   onChildrenChange,
-  onRoomsChange, // Destructure new onRoomsChange prop
+  onRoomsChange,
+  onChildrenAgesChange,
+  onRoomGuestsChange,
   isOpen,
   onOpenChange,
 }: GuestSelectorProps) => {
   const totalGuests = adults + children;
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [localChildrenAges, setLocalChildrenAges] = useState<number[]>(childrenAges);
+  const [showRoomDistribution, setShowRoomDistribution] = useState(false);
+  const [localRoomGuests, setLocalRoomGuests] = useState<RoomGuests[]>(
+    roomGuests.length > 0 ? roomGuests : Array(rooms).fill({ adults: 1, children: 0, childrenAges: [] })
+  );
+
+  // Update children ages array when children count changes
+  useEffect(() => {
+    if (children > localChildrenAges.length) {
+      const newAges = [...localChildrenAges, ...Array(children - localChildrenAges.length).fill(0)];
+      setLocalChildrenAges(newAges);
+    } else if (children < localChildrenAges.length) {
+      setLocalChildrenAges(localChildrenAges.slice(0, children));
+    }
+  }, [children]);
+
+  // Update room guests when rooms count changes
+  useEffect(() => {
+    if (rooms > localRoomGuests.length) {
+      setLocalRoomGuests([...localRoomGuests, ...Array(rooms - localRoomGuests.length).fill({ adults: 1, children: 0, childrenAges: [] })]);
+    } else if (rooms < localRoomGuests.length) {
+      setLocalRoomGuests(localRoomGuests.slice(0, rooms));
+    }
+  }, [rooms]);
+
+  const handleChildAgeChange = (index: number, age: number) => {
+    const newAges = [...localChildrenAges];
+    newAges[index] = age;
+    setLocalChildrenAges(newAges);
+    onChildrenAgesChange?.(newAges);
+  };
+
+  const handleRoomGuestChange = (roomIndex: number, field: 'adults' | 'children', value: number) => {
+    const newRoomGuests = [...localRoomGuests];
+    newRoomGuests[roomIndex] = { ...newRoomGuests[roomIndex], [field]: value };
+    setLocalRoomGuests(newRoomGuests);
+    onRoomGuestsChange?.(newRoomGuests);
+  };
+
+  const handleRoomChildAgeChange = (roomIndex: number, childIndex: number, age: number) => {
+    const newRoomGuests = [...localRoomGuests];
+    const newChildrenAges = [...(newRoomGuests[roomIndex].childrenAges || [])];
+    newChildrenAges[childIndex] = age;
+    newRoomGuests[roomIndex] = { ...newRoomGuests[roomIndex], childrenAges: newChildrenAges };
+    setLocalRoomGuests(newRoomGuests);
+    onRoomGuestsChange?.(newRoomGuests);
+  };
 
   return (
     <div className="relative">
@@ -536,6 +597,141 @@ export const GuestSelector = ({
                   </Button>
                 </div>
               </div>
+
+              {/* Children Ages */}
+              {children > 0 && (
+                <div className="border-t pt-4">
+                  <div className="font-medium text-sm mb-3">Children Ages</div>
+                  <div className="space-y-2">
+                    {Array.from({ length: children }).map((_, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">
+                          Child {index + 1} age
+                        </Label>
+                        <select
+                          value={localChildrenAges[index] || 0}
+                          onChange={(e) => handleChildAgeChange(index, parseInt(e.target.value))}
+                          className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <option value={0}>Select</option>
+                          {Array.from({ length: 11 }, (_, i) => i + 2).map((age) => (
+                            <option key={age} value={age}>
+                              {age}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Room Distribution */}
+              {rooms > 1 && (
+                <div className="border-t pt-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-between text-sm"
+                    onClick={() => setShowRoomDistribution(!showRoomDistribution)}
+                  >
+                    <span className="font-medium">Guest distribution per room</span>
+                    <ChevronRight className={cn(
+                      "h-4 w-4 transition-transform",
+                      showRoomDistribution && "rotate-90"
+                    )} />
+                  </Button>
+                  
+                  {showRoomDistribution && (
+                    <div className="mt-3 space-y-4">
+                      {Array.from({ length: rooms }).map((_, roomIndex) => (
+                        <div key={roomIndex} className="p-3 bg-muted/30 rounded-lg space-y-3">
+                          <div className="font-medium text-xs text-primary">Room {roomIndex + 1}</div>
+                          
+                          {/* Adults per room */}
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Adults</Label>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6 rounded-full"
+                                onClick={() => handleRoomGuestChange(roomIndex, 'adults', Math.max(1, (localRoomGuests[roomIndex]?.adults || 1) - 1))}
+                                disabled={(localRoomGuests[roomIndex]?.adults || 1) <= 1}
+                              >
+                                <Minus className="h-2 w-2" />
+                              </Button>
+                              <span className="w-6 text-center text-xs">
+                                {localRoomGuests[roomIndex]?.adults || 1}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6 rounded-full"
+                                onClick={() => handleRoomGuestChange(roomIndex, 'adults', (localRoomGuests[roomIndex]?.adults || 1) + 1)}
+                              >
+                                <Plus className="h-2 w-2" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Children per room */}
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Children</Label>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6 rounded-full"
+                                onClick={() => handleRoomGuestChange(roomIndex, 'children', Math.max(0, (localRoomGuests[roomIndex]?.children || 0) - 1))}
+                                disabled={(localRoomGuests[roomIndex]?.children || 0) <= 0}
+                              >
+                                <Minus className="h-2 w-2" />
+                              </Button>
+                              <span className="w-6 text-center text-xs">
+                                {localRoomGuests[roomIndex]?.children || 0}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6 rounded-full"
+                                onClick={() => handleRoomGuestChange(roomIndex, 'children', (localRoomGuests[roomIndex]?.children || 0) + 1)}
+                              >
+                                <Plus className="h-2 w-2" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Children ages per room */}
+                          {(localRoomGuests[roomIndex]?.children || 0) > 0 && (
+                            <div className="space-y-2 pt-2 border-t border-muted">
+                              {Array.from({ length: localRoomGuests[roomIndex]?.children || 0 }).map((_, childIndex) => (
+                                <div key={childIndex} className="flex items-center justify-between">
+                                  <Label className="text-xs text-muted-foreground">
+                                    Child {childIndex + 1} age
+                                  </Label>
+                                  <select
+                                    value={localRoomGuests[roomIndex]?.childrenAges?.[childIndex] || 0}
+                                    onChange={(e) => handleRoomChildAgeChange(roomIndex, childIndex, parseInt(e.target.value))}
+                                    className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                  >
+                                    <option value={0}>Age</option>
+                                    {Array.from({ length: 11 }, (_, i) => i + 2).map((age) => (
+                                      <option key={age} value={age}>
+                                        {age}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
