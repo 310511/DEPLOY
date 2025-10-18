@@ -10,6 +10,7 @@ interface SelectedRoomInfo {
   bookingCode: string;
   roomDetails: any;
   roomIndex: number;
+  selectionId: string; // Unique ID for each selection
 }
 
 interface RoomSelectionProps {
@@ -29,21 +30,24 @@ const RoomSelection: React.FC<RoomSelectionProps> = ({ hotel, onRoomSelect, unav
   }, [selectedRooms]);
 
   const handleRoomSelect = (bookingCode: string, roomDetails: any, roomIndex: number) => {
-    const isAlreadySelected = selectedRooms.some(r => r.bookingCode === bookingCode && r.roomIndex === roomIndex);
-    
-    if (isAlreadySelected) {
-      // Deselect room
-      setSelectedRooms(selectedRooms.filter(r => !(r.bookingCode === bookingCode && r.roomIndex === roomIndex)));
-    } else {
-      // Check if we can add more rooms
-      if (selectedRooms.length < maxRooms) {
-        setSelectedRooms([...selectedRooms, { bookingCode, roomDetails, roomIndex }]);
-      }
+    // Check if we can add more rooms
+    if (selectedRooms.length < maxRooms) {
+      // Generate unique selection ID
+      const selectionId = `${bookingCode}-${roomIndex}-${Date.now()}`;
+      setSelectedRooms([...selectedRooms, { bookingCode, roomDetails, roomIndex, selectionId }]);
     }
   };
 
+  const handleRoomDeselect = (selectionId: string) => {
+    setSelectedRooms(selectedRooms.filter(r => r.selectionId !== selectionId));
+  };
+
+  const getSelectedCount = (bookingCode: string, roomIndex: number) => {
+    return selectedRooms.filter(r => r.bookingCode === bookingCode && r.roomIndex === roomIndex).length;
+  };
+
   const isRoomSelected = (bookingCode: string, roomIndex: number) => {
-    return selectedRooms.some(r => r.bookingCode === bookingCode && r.roomIndex === roomIndex);
+    return getSelectedCount(bookingCode, roomIndex) > 0;
   };
 
   const isRoomUnavailable = (bookingCode: string) => {
@@ -84,9 +88,11 @@ const RoomSelection: React.FC<RoomSelectionProps> = ({ hotel, onRoomSelect, unav
         </CardHeader>
         <CardContent className="space-y-4">
           {hotel.Rooms.map((room, index) => {
-            const isSelected = isRoomSelected(room.BookingCode || `room-${index}`, index);
-            const isUnavailable = isRoomUnavailable(room.BookingCode || `room-${index}`);
-            const canSelect = selectedRooms.length < maxRooms || isSelected;
+            const bookingCode = room.BookingCode || `room-${index}`;
+            const selectedCount = getSelectedCount(bookingCode, index);
+            const isSelected = selectedCount > 0;
+            const isUnavailable = isRoomUnavailable(bookingCode);
+            const canSelect = selectedRooms.length < maxRooms;
             
             return (
               <Card 
@@ -100,7 +106,7 @@ const RoomSelection: React.FC<RoomSelectionProps> = ({ hotel, onRoomSelect, unav
                         ? 'hover:shadow-md cursor-pointer'
                         : 'opacity-60 cursor-not-allowed'
                 }`}
-                onClick={() => !isUnavailable && canSelect && handleRoomSelect(room.BookingCode || `room-${index}`, room, index)}
+                onClick={() => !isUnavailable && canSelect && handleRoomSelect(bookingCode, room, index)}
               >
               <CardContent className="p-4">
                 {isUnavailable && (
@@ -110,9 +116,14 @@ const RoomSelection: React.FC<RoomSelectionProps> = ({ hotel, onRoomSelect, unav
                   </div>
                 )}
                 {isSelected && !isUnavailable && (
-                  <div className="mb-2 flex items-center gap-2 text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span className="text-sm font-semibold">Selected</span>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm font-semibold">Selected ({selectedCount})</span>
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Click to add more
+                    </div>
                   </div>
                 )}
                 <div className="flex justify-between items-start">
