@@ -560,6 +560,96 @@ app.post("/api/bookings/reference", async (req, res) => {
   }
 });
 
+// Custom booking lookup endpoint (GET) - Fetch bookings by customer_id
+app.get("/api/bookings/custom", async (req, res) => {
+  try {
+    console.log("🔍 Proxying custom booking lookup request...");
+    console.log("📋 Query params:", req.query);
+
+    const bookingApiUrl = "http://hotelrbs.us-east-1.elasticbeanstalk.com";
+    const customerId = req.query.customer_id;
+
+    console.log("🔑 Customer ID:", customerId);
+
+    if (!customerId) {
+      return res.status(400).json({
+        error: "Missing customer_id parameter",
+      });
+    }
+
+    // Use GET request with customer_id parameter
+    const url = `${bookingApiUrl}/bookings/get?customer_id=${encodeURIComponent(customerId)}`;
+    console.log("🌐 Calling backend URL:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("📥 Custom booking lookup response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Backend error response:", errorText);
+      throw new Error(
+        `Custom booking API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    console.log("✅ Custom booking lookup response:", JSON.stringify(data, null, 2));
+
+    res.json(data);
+  } catch (error) {
+    console.error("❌ Custom booking lookup proxy error:", error);
+    res.status(500).json({
+      error: "Custom booking lookup proxy error",
+      message: error.message,
+    });
+  }
+});
+
+// Add booking details to custom backend
+app.post("/api/bookings/add", async (req, res) => {
+  try {
+    console.log("📝 Adding booking details to custom backend...");
+    console.log("📋 Request body:", JSON.stringify(req.body, null, 2));
+
+    const bookingApiUrl = "http://hotelrbs.us-east-1.elasticbeanstalk.com";
+
+    const response = await fetch(`${bookingApiUrl}/bookings/add`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    console.log("📥 Add booking response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Backend error response:", errorText);
+      throw new Error(
+        `Add booking API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    console.log("✅ Booking added successfully:", JSON.stringify(data, null, 2));
+
+    res.json(data);
+  } catch (error) {
+    console.error("❌ Add booking proxy error:", error);
+    res.status(500).json({
+      error: "Add booking proxy error",
+      message: error.message,
+    });
+  }
+});
+
 // Hotel booking endpoint
 app.post("/api/hotel-book", async (req, res) => {
   try {

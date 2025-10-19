@@ -228,11 +228,11 @@ const Booking = () => {
       {/* Booking Modal */}
       {showBookingModal && (
         <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 overflow-y-auto"
           onClick={() => setShowBookingModal(false)}
         >
           <div 
-            className="bg-background rounded-lg max-w-md w-full animate-in zoom-in-95 duration-200"
+            className="bg-background rounded-lg max-w-4xl w-full my-8 animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <BookingModal 
@@ -240,6 +240,10 @@ const Booking = () => {
               selectedRoom={prebookData?.HotelResult?.Rooms}
               rooms={location.state?.rooms}
               guests={location.state?.guests}
+              adults={location.state?.adults}
+              children={location.state?.children}
+              childrenAges={location.state?.childrenAges}
+              roomGuestsDistribution={location.state?.roomGuests}
               onClose={() => setShowBookingModal(false)}
             />
           </div>

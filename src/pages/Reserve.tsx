@@ -29,6 +29,54 @@ const Reserve = () => {
   const checkOut = searchParams.get("checkOut");
   const guests = searchParams.get("guests");
   const rooms = searchParams.get("rooms");
+  const adultsCount = parseInt(searchParams.get("adults") || "2");
+  const childrenCount = parseInt(searchParams.get("children") || "0");
+  const childrenAgesParam = searchParams.get("childrenAges");
+  const roomGuestsParam = searchParams.get("roomGuests");
+  const roomsCount = parseInt(rooms || "1");
+  
+  // Parse children ages
+  const childrenAges = childrenAgesParam 
+    ? childrenAgesParam.split(",").map(age => parseInt(age))
+    : [];
+
+  // Parse room guests distribution
+  const roomGuests = roomGuestsParam
+    ? JSON.parse(roomGuestsParam)
+    : Array(roomsCount).fill(null).map(() => ({ adults: Math.floor(adultsCount / roomsCount), children: 0, childrenAges: [] }));
+
+  // Guest details state organized by room
+  const [guestDetails, setGuestDetails] = useState<Array<{
+    roomNumber: number;
+    guests: Array<{ 
+      title: string; 
+      firstName: string; 
+      lastName: string; 
+      type: 'Adult' | 'Child';
+      age?: number;
+    }>;
+  }>>(
+    roomGuests.map((room: any, roomIndex: number) => ({
+      roomNumber: roomIndex + 1,
+      guests: [
+        // Add adults for this room
+        ...Array(room.adults || 1).fill(null).map(() => ({
+          title: 'Mr',
+          firstName: '',
+          lastName: '',
+          type: 'Adult' as const
+        })),
+        // Add children for this room
+        ...Array(room.children || 0).fill(null).map((_, childIndex: number) => ({
+          title: 'Master',
+          firstName: '',
+          lastName: '',
+          type: 'Child' as const,
+          age: room.childrenAges?.[childIndex] || 0
+        }))
+      ]
+    }))
+  );
 
   const fetchHotelDetails = async (hotelCode: string) => {
     setIsLoading(true);
@@ -356,31 +404,142 @@ const Reserve = () => {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle>Reserve Your Room</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground mb-4">
-                    Click the button below to reserve your room. This will hold your reservation for a limited time.
-                  </p>
-                  
-                  {error && (
-                    <Alert variant="destructive" className="mb-4">
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  
-                  <Button
-                    onClick={handlePrebook}
-                    disabled={prebookLoading}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {prebookLoading ? "Processing..." : "Reserve Room"}
-                  </Button>
-                </CardContent>
-              </Card>
+              <>
+                {/* Guest Details Form - Organized by Room */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>Guest Details</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Please provide details for all guests in each room
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-8">
+                      {guestDetails.map((room, roomIndex) => (
+                        <div key={`room-${roomIndex}`} className="border-2 border-primary/20 rounded-lg p-6 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/20 dark:to-purple-950/20">
+                          {/* Room Header */}
+                          <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-primary/30">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                              <User className="h-6 w-6 text-primary" />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-primary">Room {room.roomNumber}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                {room.guests.filter(g => g.type === 'Adult').length} Adult(s), {room.guests.filter(g => g.type === 'Child').length} Child(ren)
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Guests in this room */}
+                          <div className="space-y-4">
+                            {room.guests.map((guest, guestIndex) => (
+                              <div 
+                                key={`room-${roomIndex}-guest-${guestIndex}`} 
+                                className={`p-4 border rounded-lg space-y-3 ${
+                                  guest.type === 'Child' 
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' 
+                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                                }`}
+                              >
+                                <h4 className="font-medium text-sm flex items-center gap-2">
+                                  {guest.type === 'Adult' ? (
+                                    <User className="h-4 w-4" />
+                                  ) : (
+                                    <Users className="h-4 w-4" />
+                                  )}
+                                  <span>
+                                    {guest.type} {guestIndex + 1}
+                                    {guest.type === 'Child' && ` (Age: ${guest.age})`}
+                                    {roomIndex === 0 && guestIndex === 0 && " - Primary Guest"}
+                                  </span>
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div>
+                                    <Label htmlFor={`room-${roomIndex}-guest-${guestIndex}-title`}>Title</Label>
+                                    <select
+                                      id={`room-${roomIndex}-guest-${guestIndex}-title`}
+                                      value={guest.title}
+                                      onChange={(e) => {
+                                        const newDetails = [...guestDetails];
+                                        newDetails[roomIndex].guests[guestIndex].title = e.target.value;
+                                        setGuestDetails(newDetails);
+                                      }}
+                                      className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800"
+                                    >
+                                      <option value="Mr">Mr</option>
+                                      <option value="Mrs">Mrs</option>
+                                      <option value="Ms">Ms</option>
+                                      <option value="Miss">Miss</option>
+                                      <option value="Master">Master</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`room-${roomIndex}-guest-${guestIndex}-firstName`}>First Name *</Label>
+                                    <Input
+                                      id={`room-${roomIndex}-guest-${guestIndex}-firstName`}
+                                      value={guest.firstName}
+                                      onChange={(e) => {
+                                        const newDetails = [...guestDetails];
+                                        newDetails[roomIndex].guests[guestIndex].firstName = e.target.value;
+                                        setGuestDetails(newDetails);
+                                      }}
+                                      placeholder="First name"
+                                      required
+                                      className="bg-white dark:bg-gray-800"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`room-${roomIndex}-guest-${guestIndex}-lastName`}>Last Name *</Label>
+                                    <Input
+                                      id={`room-${roomIndex}-guest-${guestIndex}-lastName`}
+                                      value={guest.lastName}
+                                      onChange={(e) => {
+                                        const newDetails = [...guestDetails];
+                                        newDetails[roomIndex].guests[guestIndex].lastName = e.target.value;
+                                        setGuestDetails(newDetails);
+                                      }}
+                                      placeholder="Last name"
+                                      required
+                                      className="bg-white dark:bg-gray-800"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Reserve Button Card */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>Reserve Your Room</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground mb-4">
+                      Click the button below to reserve your room. This will hold your reservation for a limited time.
+                    </p>
+                    
+                    {error && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    <Button
+                      onClick={handlePrebook}
+                      disabled={prebookLoading}
+                      className="w-full"
+                      size="lg"
+                    >
+                      {prebookLoading ? "Processing..." : "Reserve Room"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </>
             )}
           </div>
 

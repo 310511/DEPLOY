@@ -70,8 +70,9 @@ const Profile = () => {
 
   // Look up booking by reference ID using custom API
   const handleLookupBooking = async () => {
-    if (!bookingRefId.trim()) {
-      setLookupError('Please enter a booking reference ID');
+    // Use customer_id from authenticated user for lookup
+    if (!user || !user.customer_id) {
+      setLookupError('Please log in to view your bookings');
       return;
     }
 
@@ -80,8 +81,8 @@ const Profile = () => {
     setLookedUpBooking(null);
 
     try {
-      console.log('🔍 Looking up booking with custom API:', bookingRefId);
-      const response = await getBookingFromCustomAPI(bookingRefId.trim());
+      console.log('🔍 Looking up bookings with custom API for customer:', user.customer_id);
+      const response = await getBookingFromCustomAPI(user.customer_id);
       
       console.log('📦 Custom API Lookup response:', response);
       console.log('📦 Full response JSON:', JSON.stringify(response, null, 2));
@@ -136,12 +137,19 @@ const Profile = () => {
     }
   };
 
-  // Auto-fetch sample booking from custom API
+  // Auto-fetch bookings from custom API using customer_id
   const fetchSampleBookingFromCustomAPI = async () => {
     try {
-      console.log('🚀 Auto-fetching sample booking from custom API...');
-      const sampleBookingId = 'BR00666'; // Default booking ID to fetch
-      const response = await getBookingFromCustomAPI(sampleBookingId);
+      console.log('🚀 Auto-fetching bookings from custom API...');
+      
+      // Get customer_id from authenticated user
+      if (!user || !user.customer_id) {
+        console.warn('⚠️ No customer_id available, user not logged in');
+        return;
+      }
+      
+      console.log('🔑 Using customer_id:', user.customer_id);
+      const response = await getBookingFromCustomAPI(user.customer_id);
       
       console.log('✅ Sample booking fetched from custom API:', response);
       
@@ -199,8 +207,6 @@ const Profile = () => {
         console.log('🔍 Final booking data fields:', Object.keys(bookingData));
         console.log('🔍 Final booking data is array?:', Array.isArray(bookingData));
         
-        // Set the booking reference ID and display the booking
-        setBookingRefId(sampleBookingId);
         // Store the booking data (either flattened or original)
         setLookedUpBooking(bookingData);
         setLookupError(null);
@@ -212,13 +218,21 @@ const Profile = () => {
     }
   };
 
-  // Fetch bookings on component mount and when dates change
+  // Fetch bookings on component mount and when user data is available
   useEffect(() => {
-    // Only call custom API now, not the date-based booking fetch
-    fetchSampleBookingFromCustomAPI();
-    
-    console.log('🔍 Profile page loaded - Custom API called automatically');
-  }, []); // Initial load
+    // Only fetch if user is authenticated and has customer_id
+    if (isAuthenticated && user && user.customer_id) {
+      console.log('🔍 Profile page loaded - User authenticated, fetching bookings...');
+      console.log('👤 User customer_id:', user.customer_id);
+      fetchSampleBookingFromCustomAPI();
+    } else {
+      console.log('⚠️ Waiting for user authentication...');
+      console.log('  - isAuthenticated:', isAuthenticated);
+      console.log('  - user:', user);
+      console.log('  - customer_id:', user?.customer_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user]); // Depend on authentication state and user data
 
   return (
     <div className="min-h-screen bg-background">
@@ -364,14 +378,6 @@ const Profile = () => {
 
                     {/* Dynamic Content */}
                     <div className="p-6">
-                      {/* Debug: Show what we're working with */}
-                      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded text-xs">
-                        <p><strong>Debug Info:</strong></p>
-                        <p>Type of lookedUpBooking: {typeof lookedUpBooking}</p>
-                        <p>Is Array: {Array.isArray(lookedUpBooking) ? 'Yes' : 'No'}</p>
-                        <p>Keys: {Object.keys(lookedUpBooking).join(', ')}</p>
-                      </div>
-                      
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {Object.entries(lookedUpBooking).map(([key, value]) => {
                           // Only skip if value is null, undefined, or a function
@@ -500,16 +506,6 @@ const Profile = () => {
                       <p className="text-muted-foreground text-sm mb-4">
                         No bookings exist for the selected date range
                       </p>
-                    </div>
-                    
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md">
-                      <p className="text-sm text-yellow-800 font-medium mb-2">💡 Troubleshooting Tips:</p>
-                      <ul className="text-xs text-yellow-700 text-left space-y-1">
-                        <li>• Try a <strong>wider date range</strong> (e.g., last 6 months)</li>
-                        <li>• If you just booked, <strong>wait 2-5 minutes</strong> for it to appear</li>
-                        <li>• Check if booking was for <strong>different dates</strong></li>
-                        <li>• Verify your <strong>confirmation number</strong> in localStorage</li>
-                      </ul>
                     </div>
                     
                     <button

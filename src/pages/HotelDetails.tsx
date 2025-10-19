@@ -438,6 +438,10 @@ const HotelDetails = () => {
             checkOut: checkOut,
             guests: guests,
             rooms: rooms,
+            adults: adults,
+            children: children,
+            childrenAges: childrenAges,
+            roomGuests: roomGuests,
           },
         });
       } else {

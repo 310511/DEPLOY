@@ -210,21 +210,21 @@ export const extractBookings = (response: BookingDetailsResponse): BookingItem[]
   return [];
 };
 
-// Custom API: Fetch booking by reference ID from the custom booking service
+// Custom API: Fetch bookings by customer ID from the custom booking service
 export const getBookingFromCustomAPI = async (
-  bookingReferenceId: string
+  customerId: string
 ): Promise<any> => {
   try {
-    console.log('🔍 Fetching booking from custom API with reference ID:', bookingReferenceId);
+    console.log('🔍 Fetching bookings from custom API with customer ID:', customerId);
     
-    const url = `${CUSTOM_BOOKING_API_BASE}/bookings/get?booking_reference_id=${encodeURIComponent(bookingReferenceId)}`;
-    console.log('🌐 Custom API URL:', url);
+    // Use proxy endpoint with customer_id query parameter (GET request)
+    const url = `${PROXY_BASE_URL}/bookings/custom?customer_id=${encodeURIComponent(customerId)}`;
+    console.log('🌐 Proxy URL:', url);
     
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        // Add any required headers for the custom API
       },
     });
 
@@ -241,6 +241,55 @@ export const getBookingFromCustomAPI = async (
     return data;
   } catch (error) {
     console.error('❌ Custom booking API error:', error);
+    throw error;
+  }
+};
+
+// Add booking details to custom backend after booking completion
+export const addBookingToCustomBackend = async (bookingDetails: {
+  booking_reference_id: string;
+  confirmation_number: string;
+  client_reference_id: string;
+  customer_id: string;
+  agency_name: string;
+  hotel_code: string;
+  check_in: string;
+  check_out: string;
+  booking_date: string;
+  status: string;
+  voucher_status: boolean;
+  total_fare: number;
+  currency: string;
+  no_of_rooms: number;
+  invoice_number: string;
+}): Promise<any> => {
+  try {
+    console.log('📝 Adding booking to custom backend:', bookingDetails);
+    
+    const url = `${PROXY_BASE_URL}/bookings/add`;
+    console.log('🌐 Proxy URL:', url);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(bookingDetails),
+    });
+
+    console.log('📥 Add booking response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Add booking error response:', errorText);
+      throw new Error(`Add booking API failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Booking added successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Add booking error:', error);
     throw error;
   }
 };

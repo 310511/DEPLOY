@@ -22,16 +22,31 @@ import {
 import { getCustomerAndBookingReference, testProxyConnection, loginCustomer, signupCustomer, generateBookingReference } from '@/services/authApi';
 import { completeBooking } from '@/services/bookingService';
 import { useAuth } from '@/hooks/useAuth';
+import { addBookingToCustomBackend } from '@/services/bookingsApi';
 
 interface BookingModalProps {
   hotelDetails: any;
   selectedRoom: any;
   rooms?: number;
   guests?: number;
+  adults?: number;
+  children?: number;
+  childrenAges?: number[];
+  roomGuestsDistribution?: Array<{ adults: number; children: number; childrenAges: number[] }>;
   onClose: () => void;
 }
 
-const BookingModal: React.FC<BookingModalProps> = ({ hotelDetails, selectedRoom, rooms = 1, guests = 1, onClose }) => {
+const BookingModal: React.FC<BookingModalProps> = ({ 
+  hotelDetails, 
+  selectedRoom, 
+  rooms = 1, 
+  guests = 1,
+  adults = 1,
+  children = 0,
+  childrenAges = [],
+  roomGuestsDistribution = [],
+  onClose 
+}) => {
   const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('login');
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -66,29 +81,79 @@ const BookingModal: React.FC<BookingModalProps> = ({ hotelDetails, selectedRoom,
     title: 'Mr'
   });
 
-  // Additional guests (starting from guest 2)
-  const [additionalGuests, setAdditionalGuests] = useState<Array<{
-    title: string;
-    firstName: string;
-    lastName: string;
-    type: 'Adult' | 'Child';
+  // Room-based guest details
+  const [roomGuests, setRoomGuests] = useState<Array<{
+    roomNumber: number;
+    guests: Array<{
+      title: string;
+      firstName: string;
+      lastName: string;
+      type: 'Adult' | 'Child';
+    }>;
   }>>([]);
 
-  // Initialize additional guests when component mounts
+  // Initialize room-based guests when component mounts
   useEffect(() => {
-    if (guests > 1) {
-      const guestsList = [];
-      for (let i = 1; i < guests; i++) {
-        guestsList.push({
-          title: 'Mr',
-          firstName: '',
-          lastName: '',
-          type: 'Adult' as const
+    const roomsList = [];
+    
+    // If we have room distribution from search, use it
+    if (roomGuestsDistribution && roomGuestsDistribution.length > 0) {
+      roomGuestsDistribution.forEach((room, roomIndex) => {
+        const roomGuestsList = [];
+        
+        // Add adults for this room
+        for (let i = 0; i < room.adults; i++) {
+          roomGuestsList.push({
+            title: 'Mr',
+            firstName: '',
+            lastName: '',
+            type: 'Adult' as const
+          });
+        }
+        
+        // Add children for this room
+        for (let i = 0; i < room.children; i++) {
+          roomGuestsList.push({
+            title: 'Master',
+            firstName: '',
+            lastName: '',
+            type: 'Child' as const,
+            age: room.childrenAges?.[i] || 0
+          });
+        }
+        
+        roomsList.push({
+          roomNumber: roomIndex + 1,
+          guests: roomGuestsList
+        });
+      });
+    } else {
+      // Fallback: distribute guests evenly across rooms
+      const guestsPerRoom = Math.ceil(guests / rooms);
+      
+      for (let roomIndex = 0; roomIndex < rooms; roomIndex++) {
+        const roomGuestsList = [];
+        const startGuestIndex = roomIndex * guestsPerRoom;
+        const endGuestIndex = Math.min(startGuestIndex + guestsPerRoom, guests);
+        
+        for (let guestIndex = startGuestIndex; guestIndex < endGuestIndex; guestIndex++) {
+          roomGuestsList.push({
+            title: 'Mr',
+            firstName: '',
+            lastName: '',
+            type: 'Adult' as const
+          });
+        }
+        
+        roomsList.push({
+          roomNumber: roomIndex + 1,
+          guests: roomGuestsList
         });
       }
-      setAdditionalGuests(guestsList);
     }
-  }, [guests]);
+    
+    setRoomGuests(roomsList);
+  }, [guests, rooms, adults, children, childrenAges, roomGuestsDistribution]);
   
   const [bookingConfirmation, setBookingConfirmation] = useState<{
     confirmationNumber: string;
@@ -379,13 +444,16 @@ const BookingModal: React.FC<BookingModalProps> = ({ hotelDetails, selectedRoom,
       return;
     }
 
-    // Validate additional guests
-    for (let i = 0; i < additionalGuests.length; i++) {
-      const guest = additionalGuests[i];
-      if (!guest.firstName || !guest.lastName) {
-        console.log(`❌ Validation failed: Missing guest ${i + 2} details`);
-        setErrorMessage(`Please fill in all details for Guest ${i + 2} (First Name, Last Name).`);
-        return;
+    // Validate all room guests
+    for (let roomIndex = 0; roomIndex < roomGuests.length; roomIndex++) {
+      const room = roomGuests[roomIndex];
+      for (let guestIndex = 0; guestIndex < room.guests.length; guestIndex++) {
+        const guest = room.guests[guestIndex];
+        if (!guest.firstName || !guest.lastName) {
+          console.log(`❌ Validation failed: Missing Room ${room.roomNumber} Guest ${guestIndex + 1} details`);
+          setErrorMessage(`Please fill in all details for Room ${room.roomNumber}, Guest ${guestIndex + 1} (First Name, Last Name).`);
+          return;
+        }
       }
     }
 
@@ -433,7 +501,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ hotelDetails, selectedRoom,
         totalFare,
         rooms, // Use actual rooms count
         guests, // Use actual guests count
-        additionalGuests // Pass additional guests data
+        roomGuests // Pass room-based guests data
       );
 
       if (result.success) {
@@ -488,6 +556,32 @@ const BookingModal: React.FC<BookingModalProps> = ({ hotelDetails, selectedRoom,
         console.log('💡 Use Booking Reference ID for lookup: ', confirmationData.bookingReferenceId);
         console.log('===================================');
         
+        // Add booking details to custom backend
+        try {
+          console.log('📝 Storing booking details in custom backend...');
+          await addBookingToCustomBackend({
+            booking_reference_id: confirmationData.bookingReferenceId,
+            confirmation_number: confirmationData.confirmationNumber,
+            client_reference_id: confirmationData.clientReferenceId,
+            customer_id: user?.customer_id || '',
+            agency_name: 'TravelPro',
+            hotel_code: hotelDetails?.HotelCode || '',
+            check_in: new Date().toISOString().split('T')[0], // You should pass actual check-in date
+            check_out: new Date().toISOString().split('T')[0], // You should pass actual check-out date
+            booking_date: new Date().toISOString(),
+            status: 'Confirmed',
+            voucher_status: true,
+            total_fare: totalFare,
+            currency: 'INR',
+            no_of_rooms: rooms,
+            invoice_number: `INV${Date.now()}`
+          });
+          console.log('✅ Booking details stored in custom backend successfully');
+        } catch (backendError) {
+          console.error('⚠️ Failed to store booking in custom backend (non-critical):', backendError);
+          // Don't fail the booking if backend storage fails
+        }
+        
         let successMsg = `✅ Booking confirmed!\n\nConfirmation Number: ${confirmationData.confirmationNumber}\n`;
         successMsg += `Booking ID: ${confirmationData.bookingId}\n`;
         successMsg += `Booking Reference ID: ${confirmationData.bookingReferenceId}\n`;
@@ -525,7 +619,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ hotelDetails, selectedRoom,
   console.log('🔄 BookingModal render - bookingForm:', bookingForm);
   
   return (
-    <Card className="w-full max-h-[90vh] flex flex-col">
+    <Card className="w-full max-h-[85vh] flex flex-col overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 flex-shrink-0">
         <div>
           <CardTitle className="text-xl font-bold">Complete Your Booking</CardTitle>
@@ -910,61 +1004,95 @@ const BookingModal: React.FC<BookingModalProps> = ({ hotelDetails, selectedRoom,
               />
             </div>
 
-            {/* Additional Guests */}
-            {additionalGuests.map((guest, index) => (
-              <div key={index} className="space-y-4 pt-4 border-t">
-                <h3 className="font-semibold text-sm">Guest {index + 2} Details *</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`guest-${index}-title`}>Title</Label>
-                    <Select
-                      value={guest.title}
-                      onValueChange={(value) => {
-                        const updated = [...additionalGuests];
-                        updated[index] = {...updated[index], title: value};
-                        setAdditionalGuests(updated);
-                      }}
-                    >
-                      <SelectTrigger id={`guest-${index}-title`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Mr">Mr</SelectItem>
-                        <SelectItem value="Mrs">Mrs</SelectItem>
-                        <SelectItem value="Ms">Ms</SelectItem>
-                        <SelectItem value="Dr">Dr</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`guest-${index}-firstname`}>First Name *</Label>
-                    <Input
-                      id={`guest-${index}-firstname`}
-                      placeholder="Enter first name"
-                      value={guest.firstName}
-                      onChange={(e) => {
-                        const updated = [...additionalGuests];
-                        updated[index] = {...updated[index], firstName: e.target.value};
-                        setAdditionalGuests(updated);
-                      }}
-                      required
-                    />
-                  </div>
+            {/* Room-based Guest Details */}
+            {roomGuests.map((room, roomIndex) => (
+              <div key={roomIndex} className="space-y-4 pt-6 border-t-2 border-primary/20 mt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <User className="h-5 w-5 text-primary" />
+                  <h3 className="font-bold text-base text-primary">Room {room.roomNumber} Guests</h3>
+                  <Badge variant="outline" className="ml-auto">{room.guests.length} Guest(s)</Badge>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`guest-${index}-lastname`}>Last Name *</Label>
-                  <Input
-                    id={`guest-${index}-lastname`}
-                    placeholder="Enter last name"
-                    value={guest.lastName}
-                    onChange={(e) => {
-                      const updated = [...additionalGuests];
-                      updated[index] = {...updated[index], lastName: e.target.value};
-                      setAdditionalGuests(updated);
-                    }}
-                    required
-                  />
-                </div>
+                
+                {room.guests.map((guest, guestIndex) => (
+                  <div key={guestIndex} className="space-y-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Guest {guestIndex + 1} {roomIndex === 0 && guestIndex === 0 && "(Primary)"}
+                    </h4>
+                    <div className="grid grid-cols-4 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor={`room-${roomIndex}-guest-${guestIndex}-type`}>Type *</Label>
+                        <Select
+                          value={guest.type}
+                          onValueChange={(value) => {
+                            const updated = [...roomGuests];
+                            updated[roomIndex].guests[guestIndex] = {...guest, type: value as 'Adult' | 'Child'};
+                            setRoomGuests(updated);
+                          }}
+                        >
+                          <SelectTrigger id={`room-${roomIndex}-guest-${guestIndex}-type`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Adult">Adult</SelectItem>
+                            <SelectItem value="Child">Child</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`room-${roomIndex}-guest-${guestIndex}-title`}>Title</Label>
+                        <Select
+                          value={guest.title}
+                          onValueChange={(value) => {
+                            const updated = [...roomGuests];
+                            updated[roomIndex].guests[guestIndex] = {...guest, title: value};
+                            setRoomGuests(updated);
+                          }}
+                        >
+                          <SelectTrigger id={`room-${roomIndex}-guest-${guestIndex}-title`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Mr">Mr</SelectItem>
+                            <SelectItem value="Mrs">Mrs</SelectItem>
+                            <SelectItem value="Ms">Ms</SelectItem>
+                            <SelectItem value="Miss">Miss</SelectItem>
+                            <SelectItem value="Master">Master</SelectItem>
+                            <SelectItem value="Dr">Dr</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`room-${roomIndex}-guest-${guestIndex}-firstname`}>First Name *</Label>
+                        <Input
+                          id={`room-${roomIndex}-guest-${guestIndex}-firstname`}
+                          placeholder="First name"
+                          value={guest.firstName}
+                          onChange={(e) => {
+                            const updated = [...roomGuests];
+                            updated[roomIndex].guests[guestIndex] = {...guest, firstName: e.target.value};
+                            setRoomGuests(updated);
+                          }}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`room-${roomIndex}-guest-${guestIndex}-lastname`}>Last Name *</Label>
+                        <Input
+                          id={`room-${roomIndex}-guest-${guestIndex}-lastname`}
+                          placeholder="Last name"
+                          value={guest.lastName}
+                          onChange={(e) => {
+                            const updated = [...roomGuests];
+                            updated[roomIndex].guests[guestIndex] = {...guest, lastName: e.target.value};
+                            setRoomGuests(updated);
+                          }}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
 
