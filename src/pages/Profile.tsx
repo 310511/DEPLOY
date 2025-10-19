@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { getBookingsByDateRange, extractBookings, getDefaultDateRange, formatDateForAPI, BookingItem, getBookingByReferenceId } from "@/services/bookingsApi";
+import { getBookingsByDateRange, extractBookings, getDefaultDateRange, formatDateForAPI, BookingItem, getBookingByReferenceId, getBookingFromCustomAPI } from "@/services/bookingsApi";
 import { getBookingDetails } from "@/services/bookingDetailsService";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,7 +68,7 @@ const Profile = () => {
     }
   };
 
-  // Look up booking by reference ID
+  // Look up booking by reference ID using custom API
   const handleLookupBooking = async () => {
     if (!bookingRefId.trim()) {
       setLookupError('Please enter a booking reference ID');
@@ -80,112 +80,53 @@ const Profile = () => {
     setLookedUpBooking(null);
 
     try {
-      console.log('🔍 Looking up booking:', bookingRefId);
-      const response = await getBookingByReferenceId(bookingRefId.trim());
+      console.log('🔍 Looking up booking with custom API:', bookingRefId);
+      const response = await getBookingFromCustomAPI(bookingRefId.trim());
       
-      console.log('📦 Lookup response:', response);
+      console.log('📦 Custom API Lookup response:', response);
       console.log('📦 Full response JSON:', JSON.stringify(response, null, 2));
       
-      // Check if booking was found
-      if (response.BookingDetail && typeof response.BookingDetail === 'object' && !Array.isArray(response.BookingDetail)) {
-        const detail = response.BookingDetail as any;
+      // Display the raw API response directly
+      if (response) {
+        console.log('✅ Raw booking from custom API:', response);
         
-        console.log('🔍 Raw BookingDetail:', detail);
-        console.log('🔍 HotelDetails:', detail.HotelDetails);
-        console.log('🔍 Rooms:', detail.Rooms);
-        console.log('🔍 Rooms type:', typeof detail.Rooms);
-        console.log('🔍 Rooms length:', detail.Rooms?.length);
-        console.log('🔍 Is Rooms an array?', Array.isArray(detail.Rooms));
-        
-        if (detail.Rooms && typeof detail.Rooms === 'object') {
-          const roomKeys = Object.keys(detail.Rooms);
-          console.log('🔍 Rooms has', roomKeys.length, 'keys:', roomKeys);
-          console.log('🔍 Rooms full object:', JSON.stringify(detail.Rooms, null, 2));
+        // Check if response has nested data structure
+        let bookingData = response;
+        if (response.data) {
+          console.log('🔍 Found data field in manual lookup, checking type...');
           
-          // Log values of key fields
-          console.log('🔍 Rooms.Currency:', detail.Rooms.Currency);
-          console.log('🔍 Rooms.TotalFare:', detail.Rooms.TotalFare);
-          console.log('🔍 Rooms.Name:', detail.Rooms.Name);
-          console.log('🔍 Rooms.Inclusion:', detail.Rooms.Inclusion);
+          // If data is a string, try to parse it as JSON
+          if (typeof response.data === 'string') {
+            try {
+              console.log('🔍 Data is a JSON string in manual lookup, parsing...');
+              bookingData = JSON.parse(response.data);
+              console.log('✅ Successfully parsed JSON string in manual lookup');
+            } catch (e) {
+              console.error('❌ Failed to parse JSON string in manual lookup:', e);
+              bookingData = response;
+            }
+          } else if (Array.isArray(response.data)) {
+            console.log('🔍 Data is an array in manual lookup, extracting first element...');
+            if (response.data.length > 0) {
+              bookingData = response.data[0];
+              console.log('✅ Extracted first element from array in manual lookup:', bookingData);
+            } else {
+              console.log('⚠️ Array is empty in manual lookup');
+              bookingData = response;
+            }
+          } else if (typeof response.data === 'object') {
+            console.log('🔍 Data is already an object in manual lookup, using directly');
+            bookingData = response.data;
+          }
         }
         
-        // Note: Rooms is an object, not an array
-        // The data is accessed directly from detail.Rooms (not detail.Rooms[0])
-        console.log('🔍 Checkin (lowercase):', detail.Checkin);
-        console.log('🔍 CheckOut:', detail.CheckOut);
+        console.log('✅ Final booking data for manual lookup:', bookingData);
         
-        // Transform BookingDetail API response to match BookingItem interface
-        // NOTE: API uses "Checkin" (lowercase 'c') not "CheckIn"!
-        // NOTE: Rooms is an OBJECT, not an array! Access it differently
-        
-        // Rooms is an object with fields directly, not an array!
-        // Access fields directly from detail.Rooms
-        const roomData = detail.Rooms;
-        
-        console.log('🔍 Using Rooms object directly:', roomData);
-        
-        // Extract customer names
-        let guestNames = '';
-        if (detail.CustomerDetails?.CustomerNames && Array.isArray(detail.CustomerDetails.CustomerNames)) {
-          guestNames = detail.CustomerDetails.CustomerNames
-            .map((c: any) => `${c.Title || ''} ${c.FirstName || ''} ${c.LastName || ''}`.trim())
-            .filter((name: string) => name.length > 0)
-            .join(', ');
-        }
-        
-        // Extract cancellation policies
-        let cancellationPolicyText = '';
-        if (detail.Rooms?.CancelPolicies && Array.isArray(detail.Rooms.CancelPolicies)) {
-          cancellationPolicyText = detail.Rooms.CancelPolicies
-            .map((p: any) => `From ${p.FromDate}: ${p.ChargeType} - ${p.CancellationCharge}`)
-            .join('; ');
-        }
-        
-        const transformedBooking: BookingItem = {
-          BookingStatus: detail.BookingStatus,
-          ConfirmationNo: detail.ConfirmationNumber,
-          CheckInDate: detail.Checkin || detail.CheckIn,
-          CheckOutDate: detail.CheckOut,
-          BookingDate: detail.BookingDate,
-          TripName: detail.HotelDetails?.HotelName,
-          HotelName: detail.HotelDetails?.HotelName,
-          // Room details
-          BookingPrice: roomData?.TotalFare,
-          Currency: roomData?.Currency,
-          TBOHotelCode: detail.HotelDetails?.Map,
-          InvoiceNumber: detail.InvoiceNumber,
-          VoucherStatus: detail.VoucherStatus,
-          NoOfRooms: detail.NoOfRooms,
-          RoomType: roomData?.Name,
-          Inclusion: roomData?.Inclusion,
-          // Hotel details
-          HotelCity: detail.HotelDetails?.City,
-          Rating: detail.HotelDetails?.Rating,
-          // Additional room details
-          MealType: roomData?.MealType,
-          IsRefundable: roomData?.IsRefundable,
-          TotalTax: roomData?.TotalTax,
-          RoomPromotion: roomData?.RoomPromotion,
-          // Customer details
-          GuestName: guestNames,
-          // Policies
-          CancellationPolicy: cancellationPolicyText,
-          RateConditions: roomData?.RateConditions,
-        };
-        
-        console.log('✅ Transformed booking:', transformedBooking);
-        console.log('✅ Fields check:');
-        console.log('  - BookingPrice:', transformedBooking.BookingPrice);
-        console.log('  - Currency:', transformedBooking.Currency);
-        console.log('  - RoomType:', transformedBooking.RoomType);
-        console.log('  - Inclusion:', transformedBooking.Inclusion);
-        
-        setLookedUpBooking(transformedBooking);
-      } else if (response.Status?.Code === '200' && response.Status?.Description) {
-        // Check if it's a "not found" message
-        setLookupError(`No booking found with reference ID: ${bookingRefId}`);
+        // Store the booking data (either flattened or original)
+        setLookedUpBooking(bookingData);
       } else {
-        setLookupError('Booking not found or invalid response');
+        // Handle error response from custom API
+        setLookupError(`No booking found with reference ID: ${bookingRefId}`);
       }
     } catch (error) {
       console.error('❌ Error looking up booking:', error);
@@ -195,9 +136,88 @@ const Profile = () => {
     }
   };
 
+  // Auto-fetch sample booking from custom API
+  const fetchSampleBookingFromCustomAPI = async () => {
+    try {
+      console.log('🚀 Auto-fetching sample booking from custom API...');
+      const sampleBookingId = 'BR00666'; // Default booking ID to fetch
+      const response = await getBookingFromCustomAPI(sampleBookingId);
+      
+      console.log('✅ Sample booking fetched from custom API:', response);
+      
+      // Display the raw API response directly without transformation
+      if (response) {
+        console.log('🔍 Raw API response for display:', response);
+        console.log('🔍 Response fields:', Object.keys(response));
+        console.log('🔍 Response type:', typeof response);
+        
+        // Check if response has nested data structure
+        let bookingData = response;
+        
+        console.log('🔍 Response structure:', {
+          hasData: !!response.data,
+          dataType: typeof response.data,
+          responseKeys: Object.keys(response),
+          fullResponse: response
+        });
+        
+        if (response.data) {
+          console.log('🔍 Found data field, checking type...');
+          console.log('🔍 Data value:', response.data);
+          console.log('🔍 Data type:', typeof response.data);
+          console.log('🔍 Is data an array?:', Array.isArray(response.data));
+          
+          // If data is a string, try to parse it as JSON
+          if (typeof response.data === 'string') {
+            try {
+              console.log('🔍 Data is a JSON string, parsing...');
+              console.log('🔍 String content:', response.data);
+              bookingData = JSON.parse(response.data);
+              console.log('✅ Successfully parsed JSON string:', bookingData);
+            } catch (e) {
+              console.error('❌ Failed to parse JSON string:', e);
+              console.error('❌ String that failed:', response.data);
+              bookingData = response;
+            }
+          } else if (Array.isArray(response.data)) {
+            console.log('🔍 Data is an array, extracting first element...');
+            if (response.data.length > 0) {
+              bookingData = response.data[0];
+              console.log('✅ Extracted first element from array:', bookingData);
+            } else {
+              console.log('⚠️ Array is empty');
+              bookingData = response;
+            }
+          } else if (typeof response.data === 'object') {
+            console.log('🔍 Data is already an object, using directly');
+            bookingData = response.data;
+          }
+        }
+        
+        console.log('🔍 Final booking data to display:', bookingData);
+        console.log('🔍 Final booking data type:', typeof bookingData);
+        console.log('🔍 Final booking data fields:', Object.keys(bookingData));
+        console.log('🔍 Final booking data is array?:', Array.isArray(bookingData));
+        
+        // Set the booking reference ID and display the booking
+        setBookingRefId(sampleBookingId);
+        // Store the booking data (either flattened or original)
+        setLookedUpBooking(bookingData);
+        setLookupError(null);
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to fetch sample booking from custom API:', error);
+      setLookupError(`Failed to auto-fetch booking BR00666: ${error.message}`);
+    }
+  };
+
   // Fetch bookings on component mount and when dates change
   useEffect(() => {
-    fetchBookings();
+    // Only call custom API now, not the date-based booking fetch
+    fetchSampleBookingFromCustomAPI();
+    
+    console.log('🔍 Profile page loaded - Custom API called automatically');
   }, []); // Initial load
 
   return (
@@ -217,7 +237,7 @@ const Profile = () => {
                 <div className="flex items-center justify-between">
                   <CardTitle>Your Bookings</CardTitle>
                   <Button 
-                    onClick={fetchBookings} 
+                    onClick={fetchSampleBookingFromCustomAPI} 
                     disabled={isLoadingBookings}
                     size="sm"
                     variant="outline"
@@ -262,7 +282,7 @@ const Profile = () => {
                       />
                     </div>
                     <Button 
-                      onClick={fetchBookings}
+                      onClick={fetchSampleBookingFromCustomAPI}
                       disabled={isLoadingBookings}
                       className="w-full md:w-auto"
                     >
@@ -276,210 +296,183 @@ const Profile = () => {
                   </div>
                 </div>
 
-                {/* Booking Lookup by Reference ID */}
-                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <h3 className="text-sm font-semibold mb-3 flex items-center text-blue-900 dark:text-blue-100">
-                    <Search className="h-4 w-4 mr-2" />
-                    Verify Booking by Reference ID
-                  </h3>
-                  <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                    Enter a booking reference ID to check if it exists in the system. This is useful for verifying bookings.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="bookingRefId" className="text-xs text-blue-900 dark:text-blue-100">
-                        Booking Reference ID
-                      </Label>
-                      <Input
-                        id="bookingRefId"
-                        type="text"
-                        placeholder="e.g., MOCK_1728893012345"
-                        value={bookingRefId}
-                        onChange={(e) => setBookingRefId(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleLookupBooking();
-                          }
-                        }}
-                        className="mt-1"
-                      />
+                {/* Dynamic API Booking Display */}
+                {lookedUpBooking && (
+                  <div className="mb-6 bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-xl border border-green-200 dark:border-green-800 shadow-lg">
+                    {/* Header Section */}
+                    <div className="p-6 border-b border-green-200 dark:border-green-800">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-green-100 dark:bg-green-900 rounded-full">
+                            <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                              Booking Details
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
+                              {lookedUpBooking.status === 'Confirmed' ? 'Confirmed Booking' : 'Custom API Response'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 px-4 py-2 text-base font-semibold">
+                            {lookedUpBooking.status || 'Success'}
+                          </Badge>
+                          {lookedUpBooking.status === 'Confirmed' && lookedUpBooking.confirmation_number && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="text-xs px-3 py-1.5 h-8"
+                              onClick={async () => {
+                                try {
+                                  console.log('🚫 Cancelling booking with confirmation number:', lookedUpBooking.confirmation_number);
+                                  
+                                  // Use proxy server to avoid CORS issues
+                                  const response = await fetch('/api/hotel-cancel', {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                      ConfirmationNumber: lookedUpBooking.confirmation_number
+                                    })
+                                  });
+
+                                  const data = await response.json();
+                                  console.log('✅ Cancel API response:', data);
+
+                                  if (response.ok && data.Status === 1) {
+                                    alert(`✅ Booking cancelled successfully!\nConfirmation: ${lookedUpBooking.confirmation_number}`);
+                                    // Refresh the booking data
+                                    fetchSampleBookingFromCustomAPI();
+                                  } else {
+                                    alert(`❌ Failed to cancel booking.\n${data.Description || 'Unknown error'}`);
+                                  }
+                                } catch (error) {
+                                  console.error('❌ Error cancelling booking:', error);
+                                  alert('❌ Failed to cancel booking. Please try again.');
+                                }
+                              }}
+                            >
+                              Cancel Booking
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <Button 
-                      onClick={handleLookupBooking}
-                      disabled={isLookingUp || !bookingRefId.trim()}
-                      className="w-full md:w-auto"
-                      variant="default"
-                    >
-                      {isLookingUp ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Looking up...
-                        </>
-                      ) : (
-                        <>
-                          <Search className="h-4 w-4 mr-2" />
-                          Lookup Booking
-                        </>
-                      )}
-                    </Button>
+
+                    {/* Dynamic Content */}
+                    <div className="p-6">
+                      {/* Debug: Show what we're working with */}
+                      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded text-xs">
+                        <p><strong>Debug Info:</strong></p>
+                        <p>Type of lookedUpBooking: {typeof lookedUpBooking}</p>
+                        <p>Is Array: {Array.isArray(lookedUpBooking) ? 'Yes' : 'No'}</p>
+                        <p>Keys: {Object.keys(lookedUpBooking).join(', ')}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {Object.entries(lookedUpBooking).map(([key, value]) => {
+                          // Only skip if value is null, undefined, or a function
+                          // Allow empty strings, 0, false, and objects
+                          if (value === null || 
+                              value === undefined || 
+                              typeof value === 'function' ||
+                              key.startsWith('_') ||
+                              key === 'success') {
+                            return null;
+                          }
+
+                          // Handle nested objects by stringifying them (but not for display)
+                          let displayValue = value;
+                          if (typeof value === 'object' && !Array.isArray(value)) {
+                            // Skip nested objects for now
+                            return null;
+                          } else if (Array.isArray(value)) {
+                            displayValue = value.join(', ');
+                          }
+
+                          // Format the field name for display
+                          const displayName = key
+                            .replace(/_/g, ' ')
+                            .replace(/([A-Z])/g, ' $1')
+                            .replace(/^./, str => str.toUpperCase())
+                            .trim();
+
+                          // Format the value based on its content
+                          
+                          // Handle dates (only if it's a string with ISO format)
+                          if (typeof displayValue === 'string' && 
+                              displayValue.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
+                            try {
+                              displayValue = new Date(displayValue).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              });
+                            } catch (e) {
+                              // Keep original value if date parsing fails
+                            }
+                          }
+                          
+                          // Handle booleans
+                          if (typeof value === 'boolean') {
+                            displayValue = value ? '✅ Yes' : '❌ No';
+                          }
+
+                          // Handle numbers
+                          if (typeof value === 'number') {
+                            displayValue = value.toString();
+                          }
+
+                          // Determine if this is a key field for special styling
+                          const isKeyField = key.toLowerCase().includes('total') || 
+                                           key.toLowerCase().includes('fare') || 
+                                           key.toLowerCase().includes('amount') ||
+                                           key.toLowerCase().includes('price');
+
+                          const isReferenceField = key.toLowerCase().includes('id') || 
+                                                  key.toLowerCase().includes('number') || 
+                                                  key.toLowerCase().includes('reference') ||
+                                                  key.toLowerCase().includes('code');
+
+                          return (
+                            <div 
+                              key={key} 
+                              className={`p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${
+                                isKeyField ? 'ring-2 ring-green-200 dark:ring-green-800' : ''
+                              }`}
+                            >
+                              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                {displayName}
+                              </p>
+                              <p className={`font-semibold break-words ${
+                                isKeyField 
+                                  ? 'text-lg text-green-600 dark:text-green-400' 
+                                  : 'text-gray-900 dark:text-white'
+                              } ${
+                                isReferenceField ? 'font-mono text-sm' : ''
+                              }`}>
+                                {String(displayValue)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  {/* Lookup Error */}
-                  {lookupError && (
-                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 rounded text-sm border border-red-200 dark:border-red-800">
-                      {lookupError}
-                    </div>
-                  )}
-
-                  {/* Looked Up Booking */}
-                  {lookedUpBooking && (
-                    <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-green-500">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h4 className="font-semibold text-base text-green-700 dark:text-green-400 flex items-center">
-                            <CheckCircle className="h-5 w-5 mr-2" />
-                            Booking Found!
-                          </h4>
-                          <p className="text-sm font-medium mt-1">
-                            {lookedUpBooking.TripName || lookedUpBooking.HotelName || 'Hotel Booking'}
-                          </p>
-                          {lookedUpBooking.InvoiceNumber && (
-                            <p className="text-xs text-muted-foreground">
-                              Invoice: {lookedUpBooking.InvoiceNumber}
-                            </p>
-                          )}
-                          {lookedUpBooking.BookingId && (
-                            <p className="text-xs text-muted-foreground">
-                              Booking ID: {lookedUpBooking.BookingId}
-                            </p>
-                          )}
-                        </div>
-                        <Badge
-                          variant={
-                            lookedUpBooking.BookingStatus === "Vouchered" || lookedUpBooking.BookingStatus === "Confirmed"
-                              ? "default"
-                              : lookedUpBooking.BookingStatus === "Cancelled"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                        >
-                          {lookedUpBooking.BookingStatus}
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
-                        {lookedUpBooking.CheckInDate && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Check-in</p>
-                            <p className="font-medium">{lookedUpBooking.CheckInDate}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.CheckOutDate && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Check-out</p>
-                            <p className="font-medium">{lookedUpBooking.CheckOutDate}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.BookingPrice && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Price</p>
-                            <p className="font-medium">
-                              {lookedUpBooking.Currency || 'USD'} {lookedUpBooking.BookingPrice}
-                            </p>
-                          </div>
-                        )}
-                        {lookedUpBooking.ConfirmationNo && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Confirmation</p>
-                            <p className="font-medium font-mono">{lookedUpBooking.ConfirmationNo}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.NoOfRooms && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Rooms</p>
-                            <p className="font-medium">{lookedUpBooking.NoOfRooms}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.RoomType && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Room Type</p>
-                            <p className="font-medium">{lookedUpBooking.RoomType}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.Inclusion && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Inclusion</p>
-                            <p className="font-medium">{lookedUpBooking.Inclusion}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.VoucherStatus !== undefined && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Voucher</p>
-                            <p className="font-medium">{lookedUpBooking.VoucherStatus ? '✅ Issued' : '❌ Not Issued'}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.HotelCity && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">City</p>
-                            <p className="font-medium">{lookedUpBooking.HotelCity}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.Rating && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Rating</p>
-                            <p className="font-medium">{lookedUpBooking.Rating}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.GuestName && (
-                          <div className="col-span-2">
-                            <p className="text-xs text-muted-foreground">Guest(s)</p>
-                            <p className="font-medium">{lookedUpBooking.GuestName}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.MealType && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Meal Type</p>
-                            <p className="font-medium">{lookedUpBooking.MealType}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.IsRefundable !== undefined && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Refundable</p>
-                            <p className="font-medium">{lookedUpBooking.IsRefundable ? '✅ Yes' : '❌ No'}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.TotalTax && (
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total Tax</p>
-                            <p className="font-medium">{lookedUpBooking.Currency || 'USD'} {lookedUpBooking.TotalTax}</p>
-                          </div>
-                        )}
-                        {lookedUpBooking.RoomPromotion && (
-                          <div className="col-span-2">
-                            <p className="text-xs text-muted-foreground">Promotion</p>
-                            <p className="font-medium text-green-600">{lookedUpBooking.RoomPromotion}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Cancellation Policy */}
-                      {lookedUpBooking.CancellationPolicy && (
-                        <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950 rounded border border-orange-200 dark:border-orange-800">
-                          <p className="text-xs font-semibold text-orange-900 dark:text-orange-100 mb-1">Cancellation Policy</p>
-                          <p className="text-xs text-orange-800 dark:text-orange-200">{lookedUpBooking.CancellationPolicy}</p>
-                        </div>
-                      )}
-
-                      {/* Rate Conditions */}
-                      {lookedUpBooking.RateConditions && (
-                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded border border-blue-200 dark:border-blue-800">
-                          <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Rate Conditions</p>
-                          <p className="text-xs text-blue-800 dark:text-blue-200 whitespace-pre-wrap">{lookedUpBooking.RateConditions}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {/* Lookup Error */}
+                {lookupError && (
+                  <div className="mb-6 p-3 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 rounded text-sm border border-red-200 dark:border-red-800">
+                    {lookupError}
+                  </div>
+                )}
 
                 {/* Error State */}
                 {bookingsError && (

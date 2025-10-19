@@ -39,7 +39,7 @@ const HotelDetails = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [urlSearchParams] = useSearchParams();
   
   // Extract search parameters (will be redefined below)
   
@@ -58,10 +58,24 @@ const HotelDetails = () => {
   console.log(id ,'id')
   
   // Extract search parameters at component level
-  const checkIn = searchParams.get("checkIn");
-  const checkOut = searchParams.get("checkOut");
-  const guests = searchParams.get("guests");
-  const rooms = searchParams.get("rooms");
+  const checkIn = urlSearchParams.get("checkIn");
+  const checkOut = urlSearchParams.get("checkOut");
+  const guests = urlSearchParams.get("guests");
+  const adults = parseInt(urlSearchParams.get("adults") || "2");
+  const children = parseInt(urlSearchParams.get("children") || "0");
+  const rooms = urlSearchParams.get("rooms");
+  const childrenAgesParam = urlSearchParams.get("childrenAges");
+  const roomGuestsParam = urlSearchParams.get("roomGuests");
+  
+  // Parse children ages
+  const childrenAges = childrenAgesParam 
+    ? childrenAgesParam.split(",").map(age => parseInt(age))
+    : [];
+  
+  // Parse room guests distribution
+  const roomGuests = roomGuestsParam
+    ? JSON.parse(roomGuestsParam)
+    : [];
 
   // Handle ESC key to close modals
   useEffect(() => {
@@ -157,29 +171,71 @@ const HotelDetails = () => {
         console.log('✅ All required parameters available, proceeding with search...');
         // Use rooms parameter if available, otherwise default to 1
         const roomsCount = rooms ? parseInt(rooms) : 1;
-        const guestsCount = parseInt(guests);
         
         console.log('🏠 roomsCount:', roomsCount);
-        console.log('👥 guestsCount:', guestsCount);
+        console.log('👥 adults:', adults);
+        console.log('👶 children:', children);
+        console.log('📋 roomGuests:', roomGuests);
+        console.log('📋 roomGuests length:', roomGuests?.length);
+        console.log('📋 roomGuests content:', JSON.stringify(roomGuests, null, 2));
+        console.log('🔍 URL params - adults:', urlSearchParams.get("adults"));
+        console.log('🔍 URL params - children:', urlSearchParams.get("children"));
+        console.log('🔍 URL params - rooms:', urlSearchParams.get("rooms"));
+        console.log('🔍 URL params - roomGuests:', urlSearchParams.get("roomGuests"));
         
         // Validate that parsing was successful
-        if (isNaN(roomsCount) || isNaN(guestsCount)) {
-          console.log('❌ Invalid room or guest count');
+        if (isNaN(roomsCount)) {
+          console.log('❌ Invalid room count');
           setBookingCode(null);
           return;
         }
         
-        const searchParams = {
+        // Build PaxRooms structure based on room guest distribution or defaults
+        let paxRooms;
+        
+        // Check if roomGuests has meaningful data (not just default 1 adult per room)
+        const hasDetailedRoomGuests = roomGuests && roomGuests.length > 0 && 
+          roomGuests.some((room: any) => room.adults > 1 || room.children > 0);
+        
+        if (hasDetailedRoomGuests) {
+          // Use the detailed room guest distribution from search bar
+          paxRooms = roomGuests.map((room: any) => ({
+            Adults: room.adults || 1,
+            Children: room.children || 0,
+            ChildrenAges: room.childrenAges || [],
+          }));
+          console.log('✅ Using detailed room guest distribution:', paxRooms);
+        } else {
+          // Fallback: distribute guests across rooms
+          const adultsPerRoom = Math.floor(adults / roomsCount);
+          const childrenPerRoom = Math.floor(children / roomsCount);
+          
+          paxRooms = Array.from({ length: roomsCount }, (_, index) => {
+            const isLastRoom = index === roomsCount - 1;
+            const roomAdults = isLastRoom ? adults - (adultsPerRoom * (roomsCount - 1)) : adultsPerRoom;
+            const roomChildren = isLastRoom ? children - (childrenPerRoom * (roomsCount - 1)) : childrenPerRoom;
+            
+            // Distribute children ages across rooms
+            const startIdx = index * childrenPerRoom;
+            const endIdx = isLastRoom ? childrenAges.length : startIdx + childrenPerRoom;
+            const roomChildrenAges = childrenAges.slice(startIdx, endIdx);
+            
+            return {
+              Adults: Math.max(1, roomAdults), // At least 1 adult per room
+              Children: roomChildren,
+              ChildrenAges: roomChildrenAges,
+            };
+          });
+          console.log('✅ Using distributed guests across rooms:', paxRooms);
+        }
+        
+        const apiSearchParams = {
           CheckIn: parsedCheckIn,
           CheckOut: parsedCheckOut,
           HotelCodes: id,
           GuestNationality: APP_CONFIG.DEFAULT_GUEST_NATIONALITY,
           PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
-          PaxRooms: Array.from({ length: roomsCount }, () => ({
-            Adults: guestsCount,
-            Children: APP_CONFIG.DEFAULT_CHILDREN,
-            ChildrenAges: []
-          })),
+          PaxRooms: paxRooms,
           IsDetailResponse: true,
           ResponseTime: APP_CONFIG.DEFAULT_RESPONSE_TIME
         };
@@ -198,8 +254,9 @@ const HotelDetails = () => {
         }
         
         // Fallback to search API with timeout
+        console.log('🔍 Calling search API with params:', apiSearchParams);
         const searchResponse = await Promise.race([
-          searchHotels(searchParams),
+          searchHotels(apiSearchParams),
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Search request timeout after 30 seconds')), 30000)
           )
@@ -410,7 +467,7 @@ const HotelDetails = () => {
       fetchHotelDetails(id);
       fetchBookingCode();
     }
-  }, [id, searchParams]);
+  }, [id, urlSearchParams]);
 
   if (loading) {
     return <Loader />;
@@ -722,10 +779,9 @@ const HotelDetails = () => {
                   )}
                 </div>
               </div>
-             
 
               {/* Reserve Button with Couple Video */}
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6 mt-2">
                 <Button 
                   size="lg" 
                   className="w-96 bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
@@ -756,7 +812,7 @@ const HotelDetails = () => {
                 </div>
               )}
 
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-center text-sm text-muted-foreground mt-2">
                 You won't be charged yet
               </p>
             </div>

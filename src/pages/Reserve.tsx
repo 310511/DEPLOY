@@ -66,22 +66,74 @@ const Reserve = () => {
       try {
         console.log("🔍 Getting real booking code from search API...");
         
-      const searchParams = {
+      // Extract detailed guest information from URL params
+      const adultsParam = parseInt(searchParams.get("adults") || "2");
+      const childrenParam = parseInt(searchParams.get("children") || "0");
+      const childrenAgesParam = searchParams.get("childrenAges");
+      const roomGuestsParam = searchParams.get("roomGuests");
+      const roomsCount = parseInt(rooms) || APP_CONFIG.DEFAULT_ROOMS;
+      
+      // Parse children ages
+      const childrenAges = childrenAgesParam 
+        ? childrenAgesParam.split(",").map(age => parseInt(age))
+        : [];
+      
+      // Parse room guests distribution
+      const roomGuests = roomGuestsParam
+        ? JSON.parse(roomGuestsParam)
+        : [];
+      
+      // Build PaxRooms structure based on room guest distribution or defaults
+      let paxRooms;
+      
+      // Check if roomGuests has meaningful data (not just default 1 adult per room)
+      const hasDetailedRoomGuests = roomGuests && roomGuests.length > 0 && 
+        roomGuests.some((room: any) => room.adults > 1 || room.children > 0);
+      
+      if (hasDetailedRoomGuests) {
+        // Use the detailed room guest distribution from search bar
+        paxRooms = roomGuests.map((room: any) => ({
+          Adults: room.adults || 1,
+          Children: room.children || 0,
+          ChildrenAges: room.childrenAges || [],
+        }));
+        console.log('✅ Using detailed room guest distribution:', paxRooms);
+      } else {
+        // Fallback: distribute guests across rooms
+        const adultsPerRoom = Math.floor(adultsParam / roomsCount);
+        const childrenPerRoom = Math.floor(childrenParam / roomsCount);
+        
+        paxRooms = Array.from({ length: roomsCount }, (_, index) => {
+          const isLastRoom = index === roomsCount - 1;
+          const roomAdults = isLastRoom ? adultsParam - (adultsPerRoom * (roomsCount - 1)) : adultsPerRoom;
+          const roomChildren = isLastRoom ? childrenParam - (childrenPerRoom * (roomsCount - 1)) : childrenPerRoom;
+          
+          // Distribute children ages across rooms
+          const startIdx = index * childrenPerRoom;
+          const endIdx = isLastRoom ? childrenAges.length : startIdx + childrenPerRoom;
+          const roomChildrenAges = childrenAges.slice(startIdx, endIdx);
+          
+          return {
+            Adults: Math.max(1, roomAdults), // At least 1 adult per room
+            Children: roomChildren,
+            ChildrenAges: roomChildrenAges,
+          };
+        });
+        console.log('✅ Using distributed guests across rooms:', paxRooms);
+      }
+      
+      const apiSearchParams = {
         CheckIn: checkIn || getCurrentDate(),
         CheckOut: checkOut || getDateFromNow(1),
         HotelCodes: id || "",
         GuestNationality: APP_CONFIG.DEFAULT_GUEST_NATIONALITY,
         PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
-        PaxRooms: Array.from({ length: parseInt(rooms) || APP_CONFIG.DEFAULT_ROOMS }, () => ({
-          Adults: parseInt(guests) || APP_CONFIG.DEFAULT_GUESTS,
-          Children: APP_CONFIG.DEFAULT_CHILDREN,
-          ChildrenAges: []
-        })),
+        PaxRooms: paxRooms,
         IsDetailResponse: true,
         ResponseTime: APP_CONFIG.DEFAULT_RESPONSE_TIME
       };
         
-        const searchResponse = await searchHotels(searchParams);
+        const searchResponse = await searchHotels(apiSearchParams);
         console.log("🔍 Search response for booking code:", searchResponse);
         
         if (searchResponse?.HotelResult) {

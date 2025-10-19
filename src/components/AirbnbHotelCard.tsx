@@ -69,18 +69,26 @@ const AirbnbHotelCard = ({ hotel, onHover, isSelected, variant = 'list' }: Airbn
   };
 
   const handleClick = () => {
-    // Get current search parameters
+    // Get ALL current search parameters including guest details
     const checkIn = searchParams.get("checkIn");
     const checkOut = searchParams.get("checkOut");
     const guests = searchParams.get("guests");
+    const adults = searchParams.get("adults");
+    const children = searchParams.get("children");
     const rooms = searchParams.get("rooms");
+    const childrenAges = searchParams.get("childrenAges");
+    const roomGuests = searchParams.get("roomGuests");
     
-    // Build URL with search parameters
+    // Build URL with ALL search parameters
     const params = new URLSearchParams();
     if (checkIn) params.set("checkIn", checkIn);
     if (checkOut) params.set("checkOut", checkOut);
     if (guests) params.set("guests", guests);
+    if (adults) params.set("adults", adults);
+    if (children) params.set("children", children);
     if (rooms) params.set("rooms", rooms);
+    if (childrenAges) params.set("childrenAges", childrenAges);
+    if (roomGuests) params.set("roomGuests", roomGuests);
     // Add default rooms if not present
     if (!rooms) params.set("rooms", "1");
     

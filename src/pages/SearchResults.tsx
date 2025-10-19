@@ -34,9 +34,23 @@ const SearchResults = () => {
   const destination = searchParams.get("destination") || "Riyadh";
   const guests =
     searchParams.get("guests") || APP_CONFIG.DEFAULT_GUESTS.toString();
+  const adults = parseInt(searchParams.get("adults") || "2");
+  const children = parseInt(searchParams.get("children") || "0");
   const rooms = parseInt(searchParams.get("rooms") || "1");
+  const childrenAgesParam = searchParams.get("childrenAges");
+  const roomGuestsParam = searchParams.get("roomGuests");
   const checkInRaw = searchParams.get("checkIn") || "";
   const checkOutRaw = searchParams.get("checkOut") || "";
+  
+  // Parse children ages
+  const childrenAges = childrenAgesParam 
+    ? childrenAgesParam.split(",").map(age => parseInt(age))
+    : [];
+  
+  // Parse room guests distribution
+  const roomGuests = roomGuestsParam
+    ? JSON.parse(roomGuestsParam)
+    : [];
 
   // Parse ISO dates to YYYY-MM-DD format
   const parseDate = (dateStr: string) => {
@@ -90,6 +104,11 @@ const SearchResults = () => {
   console.log("📊 SearchResults state:", {
     destination,
     guests,
+    adults,
+    children,
+    rooms,
+    childrenAges,
+    roomGuests,
     checkInRaw,
     checkOutRaw,
     checkIn,
@@ -294,9 +313,44 @@ const SearchResults = () => {
           // Step 4: Search hotels
           console.log("🔍 Step 4: Searching hotels...");
 
-          // Always search for 1 room to get all available room types
-          // Users can then select multiple rooms from the available options
-          const totalGuests = parseInt(guests) || APP_CONFIG.DEFAULT_GUESTS;
+          // Build PaxRooms structure based on room guest distribution or defaults
+          let paxRooms;
+          
+          // Check if roomGuests has meaningful data (not just default 1 adult per room)
+          const hasDetailedRoomGuests = roomGuests && roomGuests.length > 0 && 
+            roomGuests.some((room: any) => room.adults > 1 || room.children > 0);
+          
+          if (hasDetailedRoomGuests) {
+            // Use the detailed room guest distribution from search bar
+            paxRooms = roomGuests.map((room: any) => ({
+              Adults: room.adults || 1,
+              Children: room.children || 0,
+              ChildrenAges: room.childrenAges || [],
+            }));
+            console.log("✅ Using detailed room guest distribution:", paxRooms);
+          } else {
+            // Fallback: distribute guests across rooms
+            const adultsPerRoom = Math.floor(adults / rooms);
+            const childrenPerRoom = Math.floor(children / rooms);
+            
+            paxRooms = Array.from({ length: rooms }, (_, index) => {
+              const isLastRoom = index === rooms - 1;
+              const roomAdults = isLastRoom ? adults - (adultsPerRoom * (rooms - 1)) : adultsPerRoom;
+              const roomChildren = isLastRoom ? children - (childrenPerRoom * (rooms - 1)) : childrenPerRoom;
+              
+              // Distribute children ages across rooms
+              const startIdx = index * childrenPerRoom;
+              const endIdx = isLastRoom ? childrenAges.length : startIdx + childrenPerRoom;
+              const roomChildrenAges = childrenAges.slice(startIdx, endIdx);
+              
+              return {
+                Adults: Math.max(1, roomAdults), // At least 1 adult per room
+                Children: roomChildren,
+                ChildrenAges: roomChildrenAges,
+              };
+            });
+            console.log("✅ Using distributed guests across rooms:", paxRooms);
+          }
           
           let searchParams = {
             CheckIn: checkIn,
@@ -305,13 +359,7 @@ const SearchResults = () => {
             HotelCodes: hotelCodes, // Fallback to specific hotel codes
             GuestNationality: APP_CONFIG.DEFAULT_GUEST_NATIONALITY,
             PreferredCurrencyCode: APP_CONFIG.DEFAULT_CURRENCY,
-            PaxRooms: [
-              {
-                Adults: totalGuests,
-                Children: APP_CONFIG.DEFAULT_CHILDREN,
-                ChildrenAges: [],
-              },
-            ],
+            PaxRooms: paxRooms,
             IsDetailResponse: true,
             ResponseTime: APP_CONFIG.DEFAULT_RESPONSE_TIME,
           };

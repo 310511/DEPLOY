@@ -1,6 +1,7 @@
 // Bookings API service
 
 const PROXY_BASE_URL = '/api'; // Use relative URL for Vite proxy
+const CUSTOM_BOOKING_API_BASE = 'http://hotelrbs.us-east-1.elasticbeanstalk.com'; // Custom booking API
 
 export interface BookingDetailsRequest {
   FromDate: string; // ISO 8601 format: "2023-06-01T20:00:00.000Z"
@@ -207,4 +208,39 @@ export const extractBookings = (response: BookingDetailsResponse): BookingItem[]
   
   console.warn('⚠️ No bookings found in response structure:', response);
   return [];
+};
+
+// Custom API: Fetch booking by reference ID from the custom booking service
+export const getBookingFromCustomAPI = async (
+  bookingReferenceId: string
+): Promise<any> => {
+  try {
+    console.log('🔍 Fetching booking from custom API with reference ID:', bookingReferenceId);
+    
+    const url = `${CUSTOM_BOOKING_API_BASE}/bookings/get?booking_reference_id=${encodeURIComponent(bookingReferenceId)}`;
+    console.log('🌐 Custom API URL:', url);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        // Add any required headers for the custom API
+      },
+    });
+
+    console.log('📥 Custom API Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Custom API Error Response:', errorText);
+      throw new Error(`Custom booking API failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Custom booking API response received:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Custom booking API error:', error);
+    throw error;
+  }
 };

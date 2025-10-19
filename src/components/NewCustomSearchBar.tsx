@@ -61,8 +61,20 @@ const NewCustomSearchBar = ({ isSticky = false }: Props) => {
     const params = new URLSearchParams({
       destination: destination || "Riyadh",
       guests: (adults + children).toString(),
+      adults: adults.toString(),
+      children: children.toString(),
       rooms: rooms.toString(),
     });
+
+    // Add children ages if there are children
+    if (children > 0 && childrenAges.length > 0) {
+      params.set("childrenAges", childrenAges.join(","));
+    }
+
+    // Add room guest distribution if available
+    if (roomGuests.length > 0) {
+      params.set("roomGuests", JSON.stringify(roomGuests));
+    }
 
     // Format dates in local timezone (YYYY-MM-DD) to avoid timezone shift issues
     if (startDate) {
