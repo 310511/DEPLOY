@@ -1107,6 +1107,146 @@ app.post("/api/booking-detail", async (req, res) => {
   }
 });
 
+// Wishlist endpoints - Forward to remote backend
+const REMOTE_BACKEND_URL = 'http://hotelrbs.us-east-1.elasticbeanstalk.com';
+
+// Add to wishlist endpoint
+app.post("/api/wishlist/add", async (req, res) => {
+  try {
+    console.log("💖 Adding hotel to wishlist...");
+    console.log("📋 Request body:", JSON.stringify(req.body, null, 2));
+
+    const response = await fetch(`${REMOTE_BACKEND_URL}/wishlist/add`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    console.log("📥 Wishlist add response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Backend error response:", errorText);
+      throw new Error(
+        `Wishlist add API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    console.log("✅ Hotel added to wishlist successfully:", data);
+
+    res.json(data);
+  } catch (error) {
+    console.error("❌ Wishlist add proxy error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to add to wishlist",
+      error: error.message,
+    });
+  }
+});
+
+// Get wishlist endpoint
+app.get("/api/wishlist/:customer_id", async (req, res) => {
+  try {
+    console.log("📋 Fetching wishlist for customer:", req.params.customer_id);
+
+    const response = await fetch(
+      `${REMOTE_BACKEND_URL}/wishlist/${req.params.customer_id}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("📥 Wishlist get response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Backend error response:", errorText);
+      throw new Error(
+        `Wishlist get API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    console.log("✅ Wishlist fetched from backend:", data);
+
+    // Transform response to match expected format
+    // If backend returns array directly, wrap it in the expected structure
+    let transformedData;
+    if (Array.isArray(data)) {
+      transformedData = {
+        success: true,
+        data: data,
+        count: data.length
+      };
+    } else if (data.success !== undefined) {
+      // Backend already returns in correct format
+      transformedData = data;
+    } else {
+      // Unknown format, wrap it
+      transformedData = {
+        success: true,
+        data: Array.isArray(data) ? data : [data],
+        count: Array.isArray(data) ? data.length : 1
+      };
+    }
+
+    console.log("✅ Transformed wishlist response:", transformedData);
+    res.json(transformedData);
+  } catch (error) {
+    console.error("❌ Wishlist get proxy error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch wishlist",
+      error: error.message,
+    });
+  }
+});
+
+// Remove from wishlist endpoint
+app.post("/api/wishlist/remove", async (req, res) => {
+  try {
+    console.log("🗑️ Removing hotel from wishlist...");
+    console.log("📋 Request body:", JSON.stringify(req.body, null, 2));
+
+    const response = await fetch(`${REMOTE_BACKEND_URL}/wishlist/remove`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    console.log("📥 Wishlist remove response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Backend error response:", errorText);
+      throw new Error(
+        `Wishlist remove API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    console.log("✅ Hotel removed from wishlist successfully:", data);
+
+    res.json(data);
+  } catch (error) {
+    console.error("❌ Wishlist remove proxy error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to remove from wishlist",
+      error: error.message,
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Proxy server running on http://localhost:${PORT}`);
   console.log(`📡 Proxying Travzilla API calls...`);
@@ -1118,4 +1258,5 @@ app.listen(PORT, () => {
   console.log(`🚫 Proxying Hotel Cancel API calls...`);
   console.log(`📅 Proxying Booking Details by Date API calls...`);
   console.log(`🔎 Proxying Booking Detail by Reference ID API calls...`);
+  console.log(`💖 Proxying Wishlist API calls to local Flask backend...`);
 });

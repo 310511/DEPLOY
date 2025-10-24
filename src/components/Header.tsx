@@ -17,6 +17,7 @@ import {
   Search,
   LogOut,
   Calendar,
+  Heart,
 } from "lucide-react";
 import homeIcon from "@/assets/home-icon.png";
 import destinationIcon from "@/assets/destination-icon.png";
@@ -399,6 +400,13 @@ const Header = ({ variant = "default" }: HeaderProps) => {
                   >
                     <User className="h-5 w-5 text-muted-foreground" />
                     <span>Your account</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="flex items-center space-x-3 cursor-pointer px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
+                    onClick={() => navigate('/wishlist')}
+                  >
+                    <Heart className="h-5 w-5 text-red-500 fill-red-500" />
+                    <span>Your wishlist</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     className="flex items-center space-x-3 cursor-pointer px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"

@@ -21,6 +21,12 @@ ROOM_SHEET_NAME = 'Rooms'
 ROOM_HEADERS = ['Room ID', 'Hotel Code', 'Booking Code', 'Room Name', 'Base Price', 
                 'Total Fare', 'Currency', 'Is Refundable', 'Day Rates', 'Extras', 'Created At']
 
+# Wishlist configuration
+WISHLIST_EXCEL_FILE_PATH = 'wishlist.xlsx'
+WISHLIST_SHEET_NAME = 'Wishlist'
+WISHLIST_HEADERS = ['Wishlist ID', 'Customer ID', 'Hotel Code', 'Hotel Name', 'Hotel Rating', 
+                    'Address', 'City', 'Country', 'Price', 'Currency', 'Image URL', 'Search Params', 'Created At']
+
 def create_hotel_excel_file_if_not_exists():
     """Create hotel Excel file with headers if it doesn't exist"""
     if not os.path.exists(HOTEL_EXCEL_FILE_PATH):
@@ -134,6 +140,93 @@ def save_room_to_excel(data):
     except Exception as e:
         print(f"Error saving room data to Excel: {str(e)}")
         return False
+
+def create_wishlist_excel_file_if_not_exists():
+    """Create wishlist Excel file with headers if it doesn't exist"""
+    if not os.path.exists(WISHLIST_EXCEL_FILE_PATH):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = WISHLIST_SHEET_NAME
+        
+        # Add headers
+        for col, header in enumerate(WISHLIST_HEADERS, 1):
+            ws.cell(row=1, column=col, value=header)
+        
+        # Save the workbook
+        wb.save(WISHLIST_EXCEL_FILE_PATH)
+        print(f"Created new wishlist Excel file: {WISHLIST_EXCEL_FILE_PATH}")
+
+def save_wishlist_to_excel(data):
+    """Save wishlist item to Excel file using openpyxl"""
+    try:
+        # Create file if it doesn't exist
+        create_wishlist_excel_file_if_not_exists()
+        
+        # Load existing workbook
+        wb = load_workbook(WISHLIST_EXCEL_FILE_PATH)
+        ws = wb[WISHLIST_SHEET_NAME]
+        
+        # Check if hotel already exists in wishlist for this customer
+        for row in range(2, ws.max_row + 1):
+            customer_id = ws.cell(row=row, column=2).value
+            hotel_code = ws.cell(row=row, column=3).value
+            if str(customer_id) == str(data.get('customer_id')) and str(hotel_code) == str(data.get('hotel_code')):
+                print(f"Hotel {hotel_code} already in wishlist for customer {customer_id}")
+                return True
+        
+        # Find the next empty row
+        next_row = ws.max_row + 1
+        
+        # Generate wishlist ID
+        wishlist_id = f"WL{next_row - 1:05d}"
+        
+        # Prepare data for the new row
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        row_data = [
+            wishlist_id,
+            data.get('customer_id', ''),
+            data.get('hotel_code', ''),
+            data.get('hotel_name', ''),
+            data.get('hotel_rating', 0),
+            data.get('address', ''),
+            data.get('city', ''),
+            data.get('country', ''),
+            data.get('price', 0),
+            data.get('currency', 'USD'),
+            data.get('image_url', ''),
+            json.dumps(data.get('search_params', {})),
+            timestamp
+        ]
+        
+        # Add data to the worksheet
+        for col, value in enumerate(row_data, 1):
+            ws.cell(row=next_row, column=col, value=value)
+        
+        # Save the workbook
+        wb.save(WISHLIST_EXCEL_FILE_PATH)
+        print(f"Wishlist item saved to Excel: {WISHLIST_EXCEL_FILE_PATH}")
+        return True
+        
+    except Exception as e:
+        print(f"Error saving wishlist item to Excel: {str(e)}")
+        return False
+
+def get_wishlist_by_customer(customer_id):
+    """Get all wishlist items for a customer"""
+    try:
+        if not os.path.exists(WISHLIST_EXCEL_FILE_PATH):
+            return []
+        
+        df = pd.read_excel(WISHLIST_EXCEL_FILE_PATH, sheet_name=WISHLIST_SHEET_NAME)
+        
+        # Filter by customer_id
+        customer_wishlist = df[df['Customer ID'].astype(str) == str(customer_id)]
+        
+        return customer_wishlist.to_dict('records')
+        
+    except Exception as e:
+        print(f"Error retrieving wishlist: {str(e)}")
+        return []
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -279,19 +372,147 @@ def get_rooms():
             "message": f"Error retrieving rooms: {str(e)}"
         }), 500
 
+@app.route('/wishlist/add', methods=['POST'])
+def add_to_wishlist():
+    """Add hotel to user's wishlist"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No data provided"
+            }), 400
+        
+        # Validate required fields
+        required_fields = ['customer_id', 'hotel_code']
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        
+        if missing_fields:
+            return jsonify({
+                "success": False,
+                "message": f"Missing required fields: {', '.join(missing_fields)}"
+            }), 400
+        
+        # Save wishlist item to Excel
+        if save_wishlist_to_excel(data):
+            return jsonify({
+                "success": True,
+                "message": "Hotel added to wishlist successfully"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Failed to add hotel to wishlist"
+            }), 500
+            
+    except Exception as e:
+        print(f"Error in add_to_wishlist endpoint: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"Server error while adding to wishlist"
+        }), 500
+
+@app.route('/wishlist/<customer_id>', methods=['GET'])
+def get_wishlist(customer_id):
+    """Get wishlist for a specific customer"""
+    try:
+        wishlist_items = get_wishlist_by_customer(customer_id)
+        
+        return jsonify({
+            "success": True,
+            "data": wishlist_items,
+            "count": len(wishlist_items)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error retrieving wishlist: {str(e)}"
+        }), 500
+
+@app.route('/wishlist/remove', methods=['POST'])
+def remove_from_wishlist():
+    """Remove hotel from user's wishlist"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No data provided"
+            }), 400
+        
+        # Validate required fields
+        required_fields = ['customer_id', 'hotel_code']
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        
+        if missing_fields:
+            return jsonify({
+                "success": False,
+                "message": f"Missing required fields: {', '.join(missing_fields)}"
+            }), 400
+        
+        # Remove from Excel
+        if not os.path.exists(WISHLIST_EXCEL_FILE_PATH):
+            return jsonify({
+                "success": False,
+                "message": "Wishlist file not found"
+            }), 404
+        
+        wb = load_workbook(WISHLIST_EXCEL_FILE_PATH)
+        ws = wb[WISHLIST_SHEET_NAME]
+        
+        # Find and delete the row
+        row_deleted = False
+        for row in range(2, ws.max_row + 1):
+            customer_id = ws.cell(row=row, column=2).value
+            hotel_code = ws.cell(row=row, column=3).value
+            if str(customer_id) == str(data.get('customer_id')) and str(hotel_code) == str(data.get('hotel_code')):
+                ws.delete_rows(row, 1)
+                row_deleted = True
+                break
+        
+        if row_deleted:
+            wb.save(WISHLIST_EXCEL_FILE_PATH)
+            print(f"Removed hotel {data.get('hotel_code')} from wishlist for customer {data.get('customer_id')}")
+            return jsonify({
+                "success": True,
+                "message": "Hotel removed from wishlist successfully"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Hotel not found in wishlist"
+            }), 404
+            
+    except Exception as e:
+        print(f"Error in remove_from_wishlist endpoint: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"Server error while removing from wishlist"
+        }), 500
+
 if __name__ == '__main__':
     # Create the Excel files if they don't exist when starting the server
     create_hotel_excel_file_if_not_exists()
     create_room_excel_file_if_not_exists()
+    create_wishlist_excel_file_if_not_exists()
     
     print("Starting Hotel Booking Backend Server...")
     print(f"Hotel Excel file: {os.path.abspath(HOTEL_EXCEL_FILE_PATH)}")
     print(f"Room Excel file: {os.path.abspath(ROOM_EXCEL_FILE_PATH)}")
+    print(f"Wishlist Excel file: {os.path.abspath(WISHLIST_EXCEL_FILE_PATH)}")
     print("\nAvailable endpoints:")
     print("  POST /hotel/add-hotel - Add hotel details")
     print("  POST /hotelRoom/add - Add room details")
     print("  GET /hotels - Get all hotels")
     print("  GET /rooms - Get all rooms")
+    print("  POST /wishlist/add - Add hotel to wishlist")
+    print("  POST /wishlist/remove - Remove hotel from wishlist")
+    print("  GET /wishlist/<customer_id> - Get customer wishlist")
     print("  GET /health - Health check")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)

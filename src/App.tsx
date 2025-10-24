@@ -10,6 +10,7 @@ import HotelDetails from "./pages/HotelDetails";
 import Reserve from "./pages/Reserve";
 import Booking from "./pages/Booking";
 import Profile from "./pages/Profile";
+import Wishlist from "./pages/Wishlist";
 import Account from "./pages/Account";
 import AccountSettings from "./pages/AccountSettings";
 import Destinations from "./pages/Destinations";
@@ -50,6 +51,7 @@ const App = () => (
           <Route path="/reserve/:id" element={<Reserve />} />
           <Route path="/booking/:id" element={<Booking />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/account" element={<Account />} />
           <Route path="/account-settings" element={<AccountSettings />} />
           <Route path="/destinations" element={<Destinations />} />

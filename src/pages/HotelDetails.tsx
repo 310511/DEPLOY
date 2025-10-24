@@ -30,22 +30,28 @@ import {
 } from "lucide-react";
 import Loader from "@/components/ui/Loader";
 import HotelRoomDetails from "@/components/HotelRoomDetails";
+import HotelMap from "@/components/HotelMap";
 import { prebookHotel } from "@/services/bookingapi";
 import { searchHotels, getHotelDetails } from "@/services/hotelApi";
 import { APP_CONFIG, getCurrentDate, getDateFromNow } from "@/config/constants";
 import { storeHotelAndRoom } from "@/services/hotelStorageApi";
+import { addToWishlist, isHotelInWishlist, removeFromWishlist } from "@/services/wishlistApi";
+import { useAuth } from "@/hooks/useAuth";
 
 const HotelDetails = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [urlSearchParams] = useSearchParams();
+  const { user, isAuthenticated } = useAuth();
   
   // Extract search parameters (will be redefined below)
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isCheckingWishlist, setIsCheckingWishlist] = useState(false);
   const [hotelDetails, setHotelDetails] = useState<any>(null);
+  const [hotelCoordinates, setHotelCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setIsLoading] = useState(false);
   const [showRoomDetails, setShowRoomDetails] = useState(false);
   const [selectedBookingCode, setSelectedBookingCode] = useState<string | null>(null);
@@ -253,8 +259,8 @@ const HotelDetails = () => {
           console.log('⚠️ Hotel details approach failed, trying search API...');
         }
         
-        // Fallback to search API with timeout
-        console.log('🔍 Calling search API with params:', apiSearchParams);
+        // Fallback to search API
+        console.log('🔍 Calling search API to get booking code...');
         const searchResponse = await Promise.race([
           searchHotels(apiSearchParams),
           new Promise((_, reject) => 
@@ -262,32 +268,76 @@ const HotelDetails = () => {
           )
         ]);
         
+        console.log('🔍 Search response:', searchResponse);
+        console.log('🔍 HotelResult:', searchResponse?.HotelResult);
+        
         if (searchResponse?.HotelResult) {
           const hotel = searchResponse.HotelResult;
+          console.log('🔍 Hotel data:', hotel);
+          console.log('🔍 Is array?', Array.isArray(hotel));
           
           // Handle both array and object structures
           if (Array.isArray(hotel)) {
+            console.log('🔍 Array length:', hotel.length);
             const foundHotel = hotel.find(h => h.HotelCode === id);
+            console.log('🔍 Found hotel:', foundHotel);
             
-            if (foundHotel?.Rooms) {
-              if (Array.isArray(foundHotel.Rooms) && foundHotel.Rooms.length > 0) {
-                const foundBookingCode = foundHotel.Rooms[0].BookingCode;
+            if (foundHotel) {
+              // Extract coordinates - API uses "Lattitude" with double 't'
+              if (foundHotel.Lattitude !== undefined && foundHotel.Longitude !== undefined) {
+                const lat = parseFloat(foundHotel.Lattitude);
+                const lng = parseFloat(foundHotel.Longitude);
+                
+                if (!isNaN(lat) && !isNaN(lng)) {
+                  setHotelCoordinates({ lat, lng });
+                  console.log('🗺️ Set coordinates from found hotel:', { lat, lng });
+                } else {
+                  console.log('⚠️ Coordinates are not valid numbers');
+                }
+              } else {
+                console.log('⚠️ No coordinates in found hotel');
+              }
+              
+              if (foundHotel.Rooms) {
+                
+                if (Array.isArray(foundHotel.Rooms) && foundHotel.Rooms.length > 0) {
+                  const foundBookingCode = foundHotel.Rooms[0].BookingCode;
+                  setBookingCode(foundBookingCode);
+                  console.log('✅ Found booking code from search (array):', foundBookingCode);
+                  return;
+                } else if (foundHotel.Rooms.BookingCode) {
+                  // Handle object structure where Rooms is an object
+                  const foundBookingCode = foundHotel.Rooms.BookingCode;
+                  setBookingCode(foundBookingCode);
+                  console.log('✅ Found booking code from search (object):', foundBookingCode);
+                  return;
+                }
+              }
+            }
+          } else if (hotel.HotelCode) {
+            // Extract coordinates - API uses "Lattitude" with double 't'
+            if (hotel.Lattitude && hotel.Longitude) {
+              setHotelCoordinates({
+                lat: parseFloat(hotel.Lattitude),
+                lng: parseFloat(hotel.Longitude)
+              });
+              console.log('🗺️ Set coordinates from single hotel:', {
+                lat: hotel.Lattitude,
+                lng: hotel.Longitude
+              });
+            }
+            
+            // Handle object structure where Rooms is an object
+            if (hotel.Rooms && (hotel.HotelCode === id || hotel.HotelCode === String(id))) {
+              if (hotel.Rooms.BookingCode) {
+                const foundBookingCode = hotel.Rooms.BookingCode;
                 setBookingCode(foundBookingCode);
-                return;
-              } else if (foundHotel.Rooms.BookingCode) {
-                // Handle object structure where Rooms is an object
-                const foundBookingCode = foundHotel.Rooms.BookingCode;
-                setBookingCode(foundBookingCode);
+                console.log('✅ Found booking code from search (single):', foundBookingCode);
                 return;
               }
             }
-          } else if (hotel.HotelCode && hotel.Rooms && hotel.Rooms.BookingCode) {
-            // Handle object structure where Rooms is an object
-            if (hotel.HotelCode === id || hotel.HotelCode === String(id)) {
-              const foundBookingCode = hotel.Rooms.BookingCode;
-              setBookingCode(foundBookingCode);
-              return;
-            }
+          } else {
+            console.log('⚠️ Unknown hotel structure:', hotel);
           }
         }
       }
@@ -466,12 +516,92 @@ const HotelDetails = () => {
   };
 
 
+  // Check if hotel is in wishlist
+  const checkWishlistStatus = async () => {
+    if (!user || !user.customer_id || !id) return;
+    
+    setIsCheckingWishlist(true);
+    try {
+      const inWishlist = await isHotelInWishlist(user.customer_id, id);
+      setIsFavorite(inWishlist);
+    } catch (error) {
+      console.error('Error checking wishlist status:', error);
+    } finally {
+      setIsCheckingWishlist(false);
+    }
+  };
+
+  // Handle wishlist toggle
+  const handleWishlistToggle = async () => {
+    if (!isAuthenticated || !user || !user.customer_id) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to add hotels to your wishlist.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!hotelDetails) return;
+
+    try {
+      if (!isFavorite) {
+        // Add to wishlist with current search parameters
+        await addToWishlist({
+          customer_id: user.customer_id,
+          hotel_code: hotelDetails.HotelCode,
+          hotel_name: hotelDetails.HotelName,
+          hotel_rating: hotelDetails.HotelRating || 0,
+          address: hotelDetails.Address,
+          city: hotelDetails.CityName,
+          country: hotelDetails.CountryName,
+          price: hotelDetails.Price || 0,
+          currency: hotelDetails.Currency || 'USD',
+          image_url: hotelDetails.FrontImage || (hotelDetails.Images && hotelDetails.Images[0]) || '',
+          search_params: {
+            checkIn: checkIn || '',
+            checkOut: checkOut || '',
+            guests: guests || '',
+            adults: adults.toString(),
+            children: children.toString(),
+            rooms: rooms || '',
+            childrenAges: childrenAgesParam || '',
+            roomGuests: roomGuestsParam || '',
+          },
+        });
+
+        setIsFavorite(true);
+        toast({
+          title: "Added to Wishlist",
+          description: `${hotelDetails.HotelName} has been added to your wishlist.`,
+        });
+      } else {
+        // Remove from wishlist
+        await removeFromWishlist(user.customer_id, hotelDetails.HotelCode);
+        
+        setIsFavorite(false);
+        toast({
+          title: "Removed from Wishlist",
+          description: `${hotelDetails.HotelName} has been removed from your wishlist.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling wishlist:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update wishlist. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     if (id) {
       fetchHotelDetails(id);
       fetchBookingCode();
+      checkWishlistStatus();
     }
-  }, [id, urlSearchParams]);
+  }, [id, urlSearchParams, user]);
 
   if (loading) {
     return <Loader />;
@@ -685,10 +815,11 @@ const HotelDetails = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setIsFavorite(!isFavorite)}
+                    onClick={handleWishlistToggle}
+                    disabled={isCheckingWishlist}
                   >
                     <Heart
-                      className={`h-4 w-4 ${
+                      className={`h-4 w-4 transition-all ${
                         isFavorite ? "fill-red-500 text-red-500" : ""
                       }`}
                     />
@@ -990,34 +1121,22 @@ const HotelDetails = () => {
           );
         })()}
 
-        {/* Location */}
+        {/* Location Map */}
         <Card className="mb-8">
           <CardContent className="p-6">
             <h3 className="font-semibold text-foreground mb-4">
               Where you'll be
             </h3>
-            <div className="h-80 rounded-lg overflow-hidden">
-              <FakeMapView
-                hotels={[
-                  {
-                    id: hotelDetails.HotelCode,
-                    name: hotelDetails.HotelName,
-                    location: hotelDetails.Address,
-                    images: hotelDetails.Images || [hotelDetails.FrontImage],
-                    rating: hotelDetails.HotelRating,
-                    price: hotelDetails.Price || 200,
-                    reviews: 0,
-                  },
-                ]}
-                selectedHotel={hotelDetails.HotelCode}
-                onHotelSelect={() => {}}
-              />
-            </div>
+            <HotelMap
+              latitude={hotelCoordinates?.lat || 0}
+              longitude={hotelCoordinates?.lng || 0}
+              hotelName={hotelDetails.HotelName}
+              address={`${hotelDetails.Address}, ${hotelDetails.CityName}, ${hotelDetails.CountryName}`}
+            />
             <div className="mt-4 flex items-center space-x-2 text-muted-foreground">
               <MapPin className="h-4 w-4" />
               <span>
-                {hotelDetails.Address}, {hotelDetails.CityName},{" "}
-                {hotelDetails.CountryName}
+                {hotelDetails.Address}, {hotelDetails.CityName}, {hotelDetails.CountryName}
               </span>
             </div>
           </CardContent>
